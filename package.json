@@ -1,0 +1,31 @@
+{
+  "name": "sanpy-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run typecheck && vite build",
+    "check": "npm run typecheck && npm test && npm run build",
+    "test": "vitest run",
+    "typecheck": "vue-tsc --build --force"
+  },
+  "dependencies": {
+    "@mapmanager/nicepool": "file:../mapmanager-web-components/packages/nicepool",
+    "@mapmanager/signal-viewer": "file:../mapmanager-web-components/packages/signal-viewer",
+    "hyparquet": "^1.29.2",
+    "numcodecs": "^0.3.2",
+    "vue": "^3.5.41",
+    "zarrita": "^0.7.4"
+  },
+  "devDependencies": {
+    "@tsconfig/node22": "^22.0.5",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "@vue/tsconfig": "^0.9.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.3.9"
+  }
+}
+
