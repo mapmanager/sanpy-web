@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { ChartScatter } from '@lucide/vue'
+import { ChartScatter, Info } from '@lucide/vue'
 
-defineProps<{ nicePoolOpen: boolean; disabled: boolean }>()
-defineEmits<{ toggleNicePool: [] }>()
+defineProps<{ nicePoolOpen: boolean; appInformationOpen: boolean; disabled: boolean }>()
+defineEmits<{ toggleNicePool: []; toggleAppInformation: [] }>()
 </script>
 
 <template>
@@ -18,5 +18,6 @@ defineEmits<{ toggleNicePool: [] }>()
     >
       <ChartScatter :size="19" aria-hidden="true" />
     </button>
+    <button type="button" class="icon-button" :class="{ active: appInformationOpen }" aria-label="App information" title="App information" @click="$emit('toggleAppInformation')"><Info :size="19" aria-hidden="true" /></button>
   </nav>
 </template>
