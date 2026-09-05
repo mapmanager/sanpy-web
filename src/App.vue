@@ -10,7 +10,12 @@ import { createDirectoryFetch, directoryPickerSupported, pickTraceCollection } f
 import { loadLegacyAnalysis, loadTraceCollection, loadTraceRecording } from './data/traceCollectionLoader'
 import type { LoadedTraceCollection, TraceRecording } from './models/traceCollection'
 
-interface ViewerApi { setSource(source: SignalSource): Promise<void>; setOverlays(value: SignalOverlays): void; setTheme(theme: 'dark' | 'light'): void }
+interface ViewerApi {
+  setSource(source: SignalSource): Promise<void>
+  setOverlays(value: SignalOverlays): void
+  setTheme(theme: 'dark' | 'light'): void
+  setLegendVisible(visible: boolean): void
+}
 const url = ref(new URLSearchParams(location.search).get('collection') ?? '')
 const source = ref<LoadedTraceCollection | null>(null); const recording = ref<TraceRecording | null>(null)
 const selectedId = ref<string | null>(null); const sweep = ref(0); const channel = ref(0)
@@ -46,6 +51,8 @@ async function updateViewer(): Promise<void> {
   await nextTick(); const widget = viewer.value; if (!widget) return
   const traceSource = new AcqStoreTraceSignalSource(source.value, recording.value, { sweep: sweep.value, channel: channel.value })
   await Promise.all([widget.setSource(traceSource), derivativeViewer.value?.setSource(new DerivedTraceSignalSource(traceSource))])
+  widget.setLegendVisible(false)
+  derivativeViewer.value?.setLegendVisible(false)
   widget.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: selectedPeakId.value })
 }
 function peakPoints() { return peaks.value.filter((row) => Number(row.acqstore_sweep_index) === sweep.value && Number(row.acqstore_channel_index) === channel.value).flatMap((row) => { const x = Number(row.peakSec); const y = Number(row.peakVal); const id = String(row.acqstore_peak_id ?? ''); return id && Number.isFinite(x) && Number.isFinite(y) ? [{ id, x, y, kind: 'peak', label: `Peak ${String(row.spikeNumber ?? '')}`, metadata: row }] : [] }) }
