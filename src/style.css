@@ -4,16 +4,20 @@ body { margin: 0; background: #11151c; }
 button, input, select { font: inherit; }
 button, input, select { border: 1px solid var(--border); border-radius: 5px; padding: .45rem .65rem; color: var(--text); background: var(--panel-2); }
 button { cursor: pointer; } button:disabled { opacity: .5; cursor: default; }
-.app { --bg:#11151c; --panel:#171d26; --panel-2:#202937; --border:#344154; --text:#e8edf5; --muted:#9ba9ba; min-height:100vh; color:var(--text); background:var(--bg); }
+.app-shell { --bg:#11151c; --panel:#171d26; --panel-2:#202937; --border:#344154; --text:#e8edf5; --muted:#9ba9ba; --toolbar-width:44px; --nicepool-width:0px; display:grid; grid-template-columns:var(--toolbar-width) minmax(0,1fr) var(--nicepool-width); grid-template-rows:auto minmax(0,1fr); min-height:100vh; color:var(--text); background:var(--bg); }
+.app-shell.nicepool-open { --nicepool-width:min(46vw,720px); }
 .app--light { --bg:#f4f6f9; --panel:#fff; --panel-2:#eef1f5; --border:#ccd3dc; --text:#18202b; --muted:#657184; color-scheme:light; }
-.toolbar { min-height:68px; padding:.7rem 1rem; display:flex; align-items:center; gap:.7rem; border-bottom:1px solid var(--border); background:var(--panel); }
+.toolbar { grid-column:1/-1; min-height:68px; padding:.7rem 1rem; display:flex; align-items:center; gap:.7rem; border-bottom:1px solid var(--border); background:var(--panel); }
 .toolbar div:first-child { margin-right:auto; } h1,h2,p { margin:.1rem 0; } h1 { font-size:1.2rem; } h2 { font-size:1rem; } .toolbar p,.recording-header p { color:var(--muted); font-size:.8rem; }
 .toolbar form { display:flex; gap:.4rem; } .toolbar input { width:min(36vw,460px); }
+.app-toolbar { grid-column:1; display:flex; flex-direction:column; align-items:center; gap:6px; padding:8px 5px; border-right:1px solid var(--border); background:var(--panel); }
+.icon-button { display:grid; width:34px; height:34px; padding:0; place-items:center; border-color:transparent; background:transparent; }.icon-button:hover,.icon-button.active { color:#7dd3fc; border-color:var(--border); background:var(--panel-2); }
+.app-main { grid-column:2; min-width:0; height:calc(100vh - 68px); overflow:auto; }
 .collection,.recording,.results,.welcome { margin:1rem; border:1px solid var(--border); border-radius:7px; background:var(--panel); overflow:hidden; }
 .collection>header,.results>header { display:flex; justify-content:space-between; padding:.65rem .8rem; border-bottom:1px solid var(--border); }
 .table-scroll { max-height:220px; overflow:auto; } table { width:100%; border-collapse:collapse; font-size:.82rem; } th,td { text-align:left; padding:.5rem .65rem; border-bottom:1px solid var(--border); } th { position:sticky; top:0; background:var(--panel-2); } tbody tr { cursor:pointer; } tbody tr:hover,tbody tr.selected { background:color-mix(in srgb, #2b90d9 20%, var(--panel)); }
 .recording-header { display:flex; align-items:center; gap:1rem; padding:.65rem .8rem; border-bottom:1px solid var(--border); } .recording-header div { margin-right:auto; } .signal-viewer { height:430px; display:block; }
 .plot-title { padding:.45rem .8rem; color:var(--muted); font-size:.78rem; font-weight:600; text-transform:uppercase; letter-spacing:.05em; border-top:1px solid var(--border); }.derivative-viewer { height:260px; display:block; }
-.results { height:460px; } .results nice-pool { display:block; height:410px; } .empty,.welcome { padding:2rem; color:var(--muted); }
+.results { grid-column:3; min-width:0; height:calc(100vh - 68px); margin:0; border-width:0 0 0 1px; border-radius:0; } .results nice-pool { display:block; height:calc(100% - 44px); } .empty,.welcome { padding:2rem; color:var(--muted); }
 .error,.status { margin:.75rem 1rem; padding:.6rem .8rem; border-radius:5px; }.error { background:#7f1d1d; color:#fff; }.status { background:var(--panel-2); }
-@media (max-width:850px) { .toolbar { align-items:stretch; flex-wrap:wrap; } .toolbar div:first-child { width:100%; } .toolbar form { flex:1; } .toolbar input { width:100%; } .recording-header { flex-wrap:wrap; } }
+@media (max-width:850px) { .app-shell,.app-shell.nicepool-open { grid-template-columns:var(--toolbar-width) minmax(0,1fr); }.toolbar { align-items:stretch; flex-wrap:wrap; } .toolbar div:first-child { width:100%; } .toolbar form { flex:1; } .toolbar input { width:100%; } .recording-header { flex-wrap:wrap; } .results { position:fixed; z-index:5; top:68px; right:0; width:min(92vw,720px); } }

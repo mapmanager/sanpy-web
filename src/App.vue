@@ -3,6 +3,7 @@ import { computed, nextTick, ref } from 'vue'
 import { SignalViewerWidget, type SignalOverlays, type SignalSource } from '@mapmanager/signal-viewer'
 import type { NicePoolRow } from '@mapmanager/nicepool'
 import CollectionTable from './components/CollectionTable.vue'
+import AppToolbar from './components/AppToolbar.vue'
 import ResultsPanel from './components/ResultsPanel.vue'
 import { AcqStoreTraceSignalSource, DerivedTraceSignalSource } from './data/acqStoreTraceSource'
 import { loadParquet, nicePoolRows, type ParquetRow } from './data/parquet'
@@ -23,6 +24,7 @@ const peaks = ref<ParquetRow[]>([]); const selectedPeakId = ref<string | null>(n
 const loading = ref(false); const error = ref<string | null>(null); const theme = ref<'dark' | 'light'>('dark')
 const viewer = ref<ViewerApi | null>(null)
 const derivativeViewer = ref<ViewerApi | null>(null)
+const nicePoolOpen = ref(false)
 const niceRows = computed<NicePoolRow[]>(() => nicePoolRows(peaks.value))
 
 async function openCollection(next: LoadedTraceCollection): Promise<void> {
@@ -64,8 +66,9 @@ async function perform(action: () => Promise<void>): Promise<void> { loading.val
 if (url.value) void openUrl()
 </script>
 
-<template><main :class="['app', `app--${theme}`]"><header class="toolbar"><div><h1>SanPy Web</h1><p>Electrophysiology trace viewer</p></div><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><button @click="setTheme">{{ theme === 'dark' ? 'Light' : 'Dark' }} theme</button></header>
-<p v-if="error" class="error" role="alert">{{ error }}</p><p v-if="loading" class="status">Loading…</p>
+<template><div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen }]"><header class="toolbar"><div><h1>SanPy Web</h1><p>Electrophysiology trace viewer</p></div><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><button @click="setTheme">{{ theme === 'dark' ? 'Light' : 'Dark' }} theme</button></header>
+<AppToolbar :nice-pool-open="nicePoolOpen" :disabled="!source" @toggle-nice-pool="nicePoolOpen = !nicePoolOpen" />
+<main class="app-main"><p v-if="error" class="error" role="alert">{{ error }}</p><p v-if="loading" class="status">Loading…</p>
 <template v-if="source"><section class="collection"><header><h2>{{ source.collection.name }}</h2><span>{{ source.collection.members.length }} recordings</span></header><CollectionTable :members="source.collection.members" :selected-id="selectedId" @select="selectRecording" /></section>
-<section v-if="recording" class="recording"><header class="recording-header"><div><h2>{{ recording.name }}</h2><p>{{ recording.dimensions.samples.toLocaleString() }} samples · {{ recording.sampling.rate_hz.toLocaleString() }} Hz</p></div><label>Sweep <select v-model.number="sweep" @change="updateViewer"><option v-for="index in recording.dimensions.sweeps" :key="index" :value="index - 1">{{ index }}</option></select></label><label>Channel <select v-model.number="channel" @change="updateViewer"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header><div class="plot-title">Recorded signal and command</div><SignalViewerWidget ref="viewer" class="signal-viewer" @overlay-select="selectPeak" /><div class="plot-title">Signal derivative</div><SignalViewerWidget ref="derivativeViewer" class="derivative-viewer" /></section>
-<ResultsPanel :rows="niceRows" :selected-peak-id="selectedPeakId" @select="selectPeak" /></template><section v-else class="welcome"><h2>Open a SanPy trace collection</h2><p>Load a hosted <code>.sanpy</code> package URL or choose a local package folder.</p></section></main></template>
+<section v-if="recording" class="recording"><header class="recording-header"><div><h2>{{ recording.name }}</h2><p>{{ recording.dimensions.samples.toLocaleString() }} samples · {{ recording.sampling.rate_hz.toLocaleString() }} Hz</p></div><label>Sweep <select v-model.number="sweep" @change="updateViewer"><option v-for="index in recording.dimensions.sweeps" :key="index" :value="index - 1">{{ index }}</option></select></label><label>Channel <select v-model.number="channel" @change="updateViewer"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header><div class="plot-title">Recorded signal and command</div><SignalViewerWidget ref="viewer" class="signal-viewer" @overlay-select="selectPeak" /><div class="plot-title">Signal derivative</div><SignalViewerWidget ref="derivativeViewer" class="derivative-viewer" /></section></template><section v-else class="welcome"><h2>Open a SanPy trace collection</h2><p>Load a hosted <code>.sanpy</code> package URL or choose a local package folder.</p></section></main>
+<ResultsPanel v-if="nicePoolOpen && source" :rows="niceRows" :selected-peak-id="selectedPeakId" @select="selectPeak" /></div></template>
