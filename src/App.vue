@@ -6,11 +6,12 @@ import CollectionTable from './components/CollectionTable.vue'
 import AppToolbar from './components/AppToolbar.vue'
 import AppInformationPanel from './components/AppInformationPanel.vue'
 import ResultsPanel from './components/ResultsPanel.vue'
-import { AcqStoreTraceSignalSource, DerivedTraceSignalSource } from './data/acqStoreTraceSource'
-import { loadParquet, nicePoolRows, type ParquetRow } from './data/parquet'
+import { SanPyDerivativeSignalSource, SanPyZarrSignalSource } from './data/sanPyZarrSignalSource'
+import { loadSanPyTable, nicePoolRows, type AnalysisRow } from './data/sanPyTable'
 import { createDirectoryFetch, directoryPickerSupported, pickTraceCollection } from './data/resourceFetch'
-import { loadLegacyAnalysis, loadTraceCollection, loadTraceRecording } from './data/traceCollectionLoader'
-import type { LoadedTraceCollection, TraceRecording } from './models/traceCollection'
+import { loadSanPyCollection, loadSanPyRecording, loadTraceOverlays } from './data/sanPyZarrLoader'
+import { overlaySeries, resultIdFromOverlay } from './data/traceOverlays'
+import type { LoadedSanPyCollection, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
 
 interface ViewerApi {
   setSource(source: SignalSource): Promise<void>
@@ -19,9 +20,10 @@ interface ViewerApi {
   setLegendVisible(visible: boolean): void
 }
 const url = ref(new URLSearchParams(location.search).get('collection') ?? '')
-const source = ref<LoadedTraceCollection | null>(null); const recording = ref<TraceRecording | null>(null)
+const source = ref<LoadedSanPyCollection | null>(null); const recording = ref<SanPyRecording | null>(null)
 const selectedId = ref<string | null>(null); const sweep = ref(0); const channel = ref(0)
-const peaks = ref<ParquetRow[]>([]); const selectedPeakId = ref<string | null>(null)
+const recordingPath = ref<string | null>(null)
+const peaks = ref<AnalysisRow[]>([]); const overlayDefinitions = ref<TraceOverlayDefinition[]>([]); const selectedPeakId = ref<string | null>(null)
 const loading = ref(false); const error = ref<string | null>(null); const theme = ref<'dark' | 'light'>('dark')
 const viewer = ref<ViewerApi | null>(null)
 const derivativeViewer = ref<ViewerApi | null>(null)
@@ -36,40 +38,40 @@ const sweepNumber = computed({
   },
 })
 
-async function openCollection(next: LoadedTraceCollection): Promise<void> {
-  source.value = next; selectedId.value = null; recording.value = null; peaks.value = []
+async function openCollection(next: LoadedSanPyCollection): Promise<void> {
+  source.value = next; selectedId.value = null; recording.value = null; recordingPath.value = null; peaks.value = []; overlayDefinitions.value = []
   const first = next.collection.members[0]; if (first) await selectRecording(first.id)
 }
 async function openUrl(): Promise<void> {
-  if (!url.value.trim()) return; await perform(async () => { const next = await loadTraceCollection(url.value); await openCollection(next); history.replaceState(null, '', `?collection=${encodeURIComponent(next.root.href)}`) })
+  if (!url.value.trim()) return; await perform(async () => { const next = await loadSanPyCollection(url.value); await openCollection(next); history.replaceState(null, '', `?collection=${encodeURIComponent(next.root.href)}`) })
 }
 async function openFolder(): Promise<void> {
-  await perform(async () => { const handle = await pickTraceCollection(); const root = new URL(`https://local.sanpy/${encodeURIComponent(handle.name)}/`); await openCollection(await loadTraceCollection(root, createDirectoryFetch(handle, root))); history.replaceState(null, '', location.pathname) })
+  await perform(async () => { const handle = await pickTraceCollection(); const root = new URL(`https://local.sanpy/${encodeURIComponent(handle.name)}/`); await openCollection(await loadSanPyCollection(root, createDirectoryFetch(handle, root))); history.replaceState(null, '', location.pathname) })
 }
 async function selectRecording(id: string): Promise<void> {
   const collection = source.value; if (!collection) return
   await perform(async () => {
     const member = collection.collection.members.find((item) => item.id === id); if (!member) throw new Error(`Unknown recording ${id}`)
-    recording.value = await loadTraceRecording(collection, member.recording); selectedId.value = id; sweep.value = 0; channel.value = 0; selectedPeakId.value = null
-    const analysis = recording.value.resources.analysis ? await loadLegacyAnalysis(collection, recording.value.resources.analysis) : null
-    const resource = analysis?.peaks
-    peaks.value = resource ? await loadParquet(new URL(resource.path, collection.root), collection.fetch) : []
+    recording.value = await loadSanPyRecording(collection, member.recording); recordingPath.value = member.recording; selectedId.value = id; sweep.value = 0; channel.value = 0; selectedPeakId.value = null
+    peaks.value = await loadSanPyTable(collection, member.recording, recording.value.resources.analysis_results)
+    overlayDefinitions.value = (await loadTraceOverlays(collection, member.recording, recording.value.resources.trace_overlays)).overlays
     await updateViewer()
   })
 }
 async function updateViewer(): Promise<void> {
-  if (!source.value || !recording.value) return
+  if (!source.value || !recording.value || !recordingPath.value) return
   await nextTick(); const widget = viewer.value; if (!widget) return
-  const traceSource = new AcqStoreTraceSignalSource(source.value, recording.value, { sweep: sweep.value, channel: channel.value })
-  await Promise.all([widget.setSource(traceSource), derivativeViewer.value?.setSource(new DerivedTraceSignalSource(traceSource))])
+  const selection = { sweep: sweep.value, channel: channel.value }
+  const traceSource = new SanPyZarrSignalSource(source.value, recordingPath.value, recording.value, selection)
+  const derivative = channel.value === recording.value.analysis_channel ? new SanPyDerivativeSignalSource(source.value, recordingPath.value, recording.value, selection) : null
+  await Promise.all([widget.setSource(traceSource), derivative ? derivativeViewer.value?.setSource(derivative) : undefined])
   widget.setLegendVisible(false)
   derivativeViewer.value?.setLegendVisible(false)
-  widget.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: selectedPeakId.value })
+  widget.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: defaultOverlayPointId(selectedPeakId.value) })
 }
-function peakPoints() { return peaks.value.filter((row) => Number(row.acqstore_sweep_index) === sweep.value && Number(row.acqstore_channel_index) === channel.value).flatMap((row) => { const x = Number(row.peakSec); const y = Number(row.peakVal); const id = String(row.acqstore_peak_id ?? ''); return id && Number.isFinite(x) && Number.isFinite(y) ? [{ id, x, y, kind: 'peak', label: `Peak ${String(row.spikeNumber ?? '')}`, metadata: row }] : [] }) }
-function thresholdPoints() { return peaks.value.filter((row) => Number(row.acqstore_sweep_index) === sweep.value && Number(row.acqstore_channel_index) === channel.value).flatMap((row) => { const x = Number(row.thresholdSec); const y = Number(row.thresholdVal); const peakId = String(row.acqstore_peak_id ?? ''); return peakId && Number.isFinite(x) && Number.isFinite(y) ? [{ id: `${peakId}:threshold`, x, y, kind: 'threshold', label: `Threshold ${String(row.spikeNumber ?? '')}`, metadata: { peakId, ...row } }] : [] }) }
-function scatterSeries() { return [{ id: 'peaks', label: 'Peaks', color: '#00e5ff', points: peakPoints() }, { id: 'thresholds', label: 'Take-off potentials', color: '#f472b6', points: thresholdPoints() }] }
-function selectPeak(id: string | null): void { const peakId = id?.endsWith(':threshold') ? id.slice(0, -10) : id; selectedPeakId.value = peakId; if (viewer.value) viewer.value.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: id }) }
+function scatterSeries() { return channel.value === recording.value?.analysis_channel ? overlaySeries(peaks.value, overlayDefinitions.value, sweep.value, ['#00e5ff', '#f472b6', '#fbbf24', '#34d399']) : [] }
+function defaultOverlayPointId(resultId: string | null): string | null { const overlay = overlayDefinitions.value[0]; return resultId && overlay ? `${resultId}:${overlay.id}` : null }
+function selectPeak(id: string | null): void { selectedPeakId.value = resultIdFromOverlay(id); const pointId = id?.includes(':') ? id : defaultOverlayPointId(id); if (viewer.value) viewer.value.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: pointId }) }
 function setTheme(): void { theme.value = theme.value === 'dark' ? 'light' : 'dark'; viewer.value?.setTheme(theme.value); derivativeViewer.value?.setTheme(theme.value) }
 async function perform(action: () => Promise<void>): Promise<void> { loading.value = true; error.value = null; try { await action() } catch (reason) { if (!(reason instanceof DOMException && reason.name === 'AbortError')) error.value = reason instanceof Error ? reason.message : String(reason) } finally { loading.value = false } }
 const footerStatus = computed(() => error.value ? `Error: ${error.value}` : loading.value ? 'Loading…' : source.value ? 'Ready' : 'No collection open')
@@ -81,6 +83,6 @@ if (url.value) void openUrl()
 <AppInformationPanel v-if="appInformationOpen" @close="appInformationOpen = false" />
 <main class="app-main"><p v-if="error" class="error" role="alert">{{ error }}</p><p v-if="loading" class="status">Loading…</p>
 <template v-if="source"><section class="collection"><CollectionTable :members="source.collection.members" :selected-id="selectedId" @select="selectRecording" /></section>
-<section v-if="recording" class="recording"><header class="recording-header"><div><h2>{{ recording.name }}</h2><p>{{ recording.dimensions.samples.toLocaleString() }} samples · {{ recording.sampling.rate_hz.toLocaleString() }} Hz</p></div><label>Sweep <input v-model.number="sweepNumber" type="number" min="1" :max="recording.dimensions.sweeps" step="1" @change="updateViewer"></label><label>Channel <select v-model.number="channel" @change="updateViewer"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header><div class="plot-title">Recorded signal and command</div><SignalViewerWidget ref="viewer" class="signal-viewer" @overlay-select="selectPeak" /><div class="plot-title">Signal derivative</div><SignalViewerWidget ref="derivativeViewer" class="derivative-viewer" /></section></template><section v-else class="welcome"><h2>Open a SanPy trace collection</h2><p>Load a hosted <code>.sanpy</code> package URL or choose a local package folder.</p></section></main>
+<section v-if="recording" class="recording"><header class="recording-header"><div><h2>{{ recording.name }}</h2><p>{{ recording.dimensions.points.toLocaleString() }} samples · {{ recording.sampling_rate_hz.toLocaleString() }} Hz</p></div><label>Sweep <input v-model.number="sweepNumber" type="number" min="1" :max="recording.dimensions.sweeps" step="1" @change="updateViewer"></label><label>Channel <select v-model.number="channel" @change="updateViewer"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header><div class="plot-title">Recorded signal and command</div><SignalViewerWidget ref="viewer" class="signal-viewer" @overlay-select="selectPeak" /><template v-if="channel === recording.analysis_channel"><div class="plot-title">Signal derivative</div><SignalViewerWidget ref="derivativeViewer" class="derivative-viewer" /></template></section></template><section v-else class="welcome"><h2>Open a SanPy Zarr collection</h2><p>Load a hosted <code>.sanpy.zarr</code> collection URL or choose a local collection folder.</p></section></main>
 <ResultsPanel v-if="nicePoolOpen && source" :rows="niceRows" :selected-peak-id="selectedPeakId" @select="selectPeak" />
 <footer class="app-footer"><span>{{ recording?.name ?? 'No recording' }}</span><span>Sweep {{ recording ? sweepNumber : '—' }}</span><span>Channel {{ recording ? channel + 1 : '—' }}</span><span>Peaks {{ peaks.length }}</span><span class="app-footer__status" :class="{ error: error }">{{ footerStatus }}</span></footer></div></template>

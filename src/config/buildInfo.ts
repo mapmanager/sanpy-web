@@ -1,4 +1,4 @@
-import { TRACE_COLLECTION_VERSION } from '../models/traceCollection'
+import { SANPY_ZARR_VERSION } from '../models/traceCollection'
 
 export const buildInfo = __SANPY_WEB_BUILD_INFO__
 
@@ -9,5 +9,5 @@ export const appInformation: Record<string, string> = {
   ...(buildInfo.gitBranch ? { 'Git branch': buildInfo.gitBranch } : {}),
   ...(buildInfo.gitState ? { 'Git state': buildInfo.gitState } : {}),
   'Built (New York)': buildInfo.builtEastern,
-  'AcqStore Trace Collection version': TRACE_COLLECTION_VERSION,
+  'SanPy Zarr version': SANPY_ZARR_VERSION,
 }

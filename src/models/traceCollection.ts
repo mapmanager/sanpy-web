@@ -1,52 +1,63 @@
-export const TRACE_COLLECTION_VERSION = '0.1'
+export type ResourceFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
 
-export interface TraceCollectionMember {
+export const SANPY_ZARR_VERSION = '1.0-draft'
+
+export interface SanPyCollectionMember {
   id: string
   name: string
   recording: string
   summary: {
-    num_sweeps: number
-    num_channels: number
-    samples_per_sweep: number
-    samples_per_second: number
-    num_peaks: number
+    sweeps: number
+    channels: number
+    points: number
+    sampling_rate_hz: number
+    analysis_results: number
     protocol: string
     acquisition_datetime: string
   }
 }
 
-export interface TraceCollection {
-  format: 'acqstore-trace-collection'
-  version: '0.1'
+export interface SanPyCollection {
+  format: 'sanpy-zarr'
+  version: '1.0-draft'
   id: string
   name: string
-  members: TraceCollectionMember[]
+  created_at: string
+  members: SanPyCollectionMember[]
 }
 
-export interface TraceRecording {
-  format: 'acqstore-trace-recording'
-  version: '0.1'
-  recording_id: string
+export interface SanPyTableResource {
+  rows: number
+  representations: { csv?: string; parquet?: string }
+}
+
+export interface SanPyRecording {
+  format: 'sanpy-zarr-recording'
+  version: '1.0-draft'
+  id: string
   name: string
-  dimensions: { sweeps: number; channels: number; samples: number }
-  sampling: { rate_hz: number; time_unit: string }
-  channels: Array<{ index: number; name: string; unit: string }>
+  dimensions: { sweeps: number; channels: number; points: number }
+  sampling_rate_hz: number
+  protocol: string
+  acquisition_datetime: string
+  channels: Array<{ index: number; name: string; unit: string; values_are_scaled?: true }>
   command_channels: Array<{ index: number; name: string; unit: string }>
+  analysis_channel: number
   resources: {
-    arrays: string
-    epochs: TableResource
-    source: string
-    analysis?: string
+    data: string
+    analysis_results: SanPyTableResource
+    trace_overlays: string
   }
-  display: { minmax_factors: number[]; signals: Array<'values' | 'commands'> }
 }
 
-export interface TableResource { media_type: string; path: string; rows: number }
-export interface LegacyAnalysis {
-  format: 'sanpy-legacy-analysis'
-  version: 1
-  recording_id: string
-  peaks?: TableResource
+export interface TraceOverlayDefinition {
+  id: string
+  label: string
+  x_result: string
+  y_result: string
+  point_id_result: string
+  sweep_result: string
 }
-export interface LoadedTraceCollection { root: URL; fetch: ResourceFetch; collection: TraceCollection }
-export type ResourceFetch = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
+
+export interface TraceOverlayDocument { overlays: TraceOverlayDefinition[] }
+export interface LoadedSanPyCollection { root: URL; fetch: ResourceFetch; collection: SanPyCollection }
