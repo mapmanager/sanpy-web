@@ -59,7 +59,10 @@ export async function loadSanPyRecording(
   if (recording.format !== 'sanpy-zarr-recording' || recording.version !== SANPY_ZARR_VERSION) {
     throw new Error('Unsupported SanPy Zarr recording manifest')
   }
-  if (!relativePath(recording.resources.data) || !relativePath(recording.resources.trace_overlays)) {
+  if (!relativePath(recording.resources.data)
+    || !relativePath(recording.resources.sanpy_metadata)
+    || !relativePath(recording.resources.detection_parameters)
+    || !relativePath(recording.resources.trace_overlays)) {
     throw new Error('Invalid SanPy Zarr recording resource path')
   }
   const representations = recording.resources.analysis_results.representations
@@ -67,6 +70,30 @@ export async function loadSanPyRecording(
     throw new Error('Invalid SanPy Zarr table resource path')
   }
   return recording
+}
+
+export async function loadSanPyMetadata(
+  source: LoadedSanPyCollection,
+  recordingPath: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  const recordingUrl = new URL(recordingPath, source.root)
+  const metadata = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
+  if (!object(metadata)) throw new Error('Invalid SanPy metadata document')
+  return metadata
+}
+
+export async function loadDetectionParameters(
+  source: LoadedSanPyCollection,
+  recordingPath: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<Record<string, unknown>> {
+  const recordingUrl = new URL(recordingPath, source.root)
+  const parameters = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
+  if (!object(parameters)) throw new Error('Invalid SanPy detection-parameters document')
+  return parameters
 }
 
 export async function loadTraceOverlays(

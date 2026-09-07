@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadSanPyCollection, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
+import { loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
 import type { LoadedSanPyCollection } from '../src/models/traceCollection'
 
 const valid = {
@@ -39,6 +39,24 @@ describe('loadSanPyCollection', () => {
 
   it('rejects unsupported versions', async () => {
     await expect(loadSanPyCollection('https://example.test/', fetchJson({ ...valid, version: '1.0' }))).rejects.toThrow('Unsupported')
+  })
+
+  it('loads the selected recording SanPy metadata document', async () => {
+    const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
+    source.fetch = fetchJson({ Species: 'mouse', Include: 'yes' }) as LoadedSanPyCollection['fetch']
+    await expect(loadSanPyMetadata(source, valid.members[0].recording, 'metadata/sanpy_metadata.json')).resolves.toEqual({ Species: 'mouse', Include: 'yes' })
+  })
+
+  it('rejects non-object SanPy metadata', async () => {
+    const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
+    source.fetch = fetchJson(['not', 'metadata']) as LoadedSanPyCollection['fetch']
+    await expect(loadSanPyMetadata(source, valid.members[0].recording, 'metadata/sanpy_metadata.json')).rejects.toThrow('Invalid')
+  })
+
+  it('loads detection parameters as JSON key/value data', async () => {
+    const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
+    source.fetch = fetchJson({ detectionName: 'Fast Neuron', dvdtThreshold: 20 }) as LoadedSanPyCollection['fetch']
+    await expect(loadDetectionParameters(source, valid.members[0].recording, 'metadata/detection_parameters.json')).resolves.toEqual({ detectionName: 'Fast Neuron', dvdtThreshold: 20 })
   })
 
   it('rejects duplicate runtime overlay identifiers', async () => {

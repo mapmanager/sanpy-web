@@ -46,6 +46,8 @@ export interface SanPyRecording {
   resources: {
     data: string
     analysis_results: SanPyTableResource
+    sanpy_metadata: string
+    detection_parameters: string
     trace_overlays: string
   }
 }
