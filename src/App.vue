@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
+import { BookOpen } from '@lucide/vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { SignalViewerWidget, type SignalOverlays, type SignalSource, type SignalViewport } from '@mapmanager/signal-viewer'
 import type { NicePoolRow } from '@mapmanager/nicepool'
 import CollectionTable from './components/CollectionTable.vue'
@@ -29,7 +30,8 @@ const source = ref<LoadedSanPyCollection | null>(null); const recording = ref<Sa
 const selectedId = ref<string | null>(null); const sweep = ref(0); const channel = ref(0)
 const recordingPath = ref<string | null>(null)
 const peaks = ref<AnalysisRow[]>([]); const overlayDefinitions = ref<TraceOverlayDefinition[]>([]); const selectedPeakId = ref<string | null>(null)
-const loading = ref(false); const error = ref<string | null>(null); const theme = ref<'dark' | 'light'>('dark')
+const loading = ref(false); const error = ref<string | null>(null); const darkTheme = ref(true)
+const theme = computed<'dark' | 'light'>(() => darkTheme.value ? 'dark' : 'light')
 const viewer = ref<ViewerApi | null>(null)
 const derivativeViewer = ref<ViewerApi | null>(null)
 const nicePoolOpen = ref(false)
@@ -86,6 +88,8 @@ async function updateViewer(preserveViewport = false): Promise<void> {
   const selection = { sweep: sweep.value, channel: channel.value }
   if (!rightAxisChoices.value.some(({ value }) => value === rightAxisSignal.value)) rightAxisSignal.value = rightAxisChoices.value[0]!.value
   const previousViewport = preserveViewport ? widget.getViewport() : null
+  widget.setTheme(theme.value)
+  derivativeViewer.value?.setTheme(theme.value)
   const traceSource = new SanPyZarrSignalSource(source.value, recordingPath.value, recording.value, selection, rightAxisSignal.value)
   const derivative = channel.value === recording.value.analysis_channel ? new SanPyDerivativeSignalSource(source.value, recordingPath.value, recording.value, selection) : null
   await Promise.all([widget.setSource(traceSource), derivative ? derivativeViewer.value?.setSource(derivative) : undefined])
@@ -99,7 +103,7 @@ async function updateViewer(preserveViewport = false): Promise<void> {
 function scatterSeries() { return channel.value === recording.value?.analysis_channel ? overlaySeries(peaks.value, overlayDefinitions.value, sweep.value, ['#00e5ff', '#f472b6', '#fbbf24', '#34d399']) : [] }
 function defaultOverlayPointId(resultId: string | null): string | null { const overlay = overlayDefinitions.value[0]; return resultId && overlay ? `${resultId}:${overlay.id}` : null }
 function selectPeak(id: string | null): void { selectedPeakId.value = resultIdFromOverlay(id); const pointId = id?.includes(':') ? id : defaultOverlayPointId(id); if (viewer.value) viewer.value.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: pointId }) }
-function setTheme(): void { theme.value = theme.value === 'dark' ? 'light' : 'dark'; viewer.value?.setTheme(theme.value); derivativeViewer.value?.setTheme(theme.value) }
+watch(theme, async (value) => { await nextTick(); viewer.value?.setTheme(value); derivativeViewer.value?.setTheme(value) })
 async function mirrorViewport(target: ViewerApi | null, viewport: SignalViewport): Promise<void> {
   if (!target || synchronizingViewport) return
   synchronizingViewport = true
@@ -120,7 +124,7 @@ if (url.value) void openUrl()
 
 <template>
   <div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen, 'left-panel-open': appInformationOpen || metadataOpen || detectionParametersOpen }]">
-    <header class="toolbar"><h1>SanPy Web</h1><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><button @click="setTheme">{{ theme === 'dark' ? 'Light' : 'Dark' }} theme</button></header>
+    <header class="toolbar"><h1>SanPy Web</h1><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><label class="theme-switch"><span>Dark theme</span><input v-model="darkTheme" type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch__track" aria-hidden="true"><span /></span></label><a class="icon-button" href="https://mapmanager.github.io/sanpy-web/docs/" target="_blank" rel="noreferrer" aria-label="Open the SanPy Web documentation" title="Documentation"><BookOpen :size="19" aria-hidden="true" /></a></header>
     <AppToolbar :nice-pool-open="nicePoolOpen" :metadata-open="metadataOpen" :detection-parameters-open="detectionParametersOpen" :app-information-open="appInformationOpen" :disabled="!source" @toggle-nice-pool="nicePoolOpen = !nicePoolOpen" @toggle-metadata="toggleMetadata" @toggle-detection-parameters="toggleDetectionParameters" @toggle-app-information="toggleAppInformation" />
     <AppInformationPanel v-if="appInformationOpen" @close="appInformationOpen = false" />
     <JsonValuesPanel v-if="metadataOpen && recording" title="SanPy metadata" :values="metadata" :recording-name="recording.name" @close="metadataOpen = false" />
@@ -144,7 +148,7 @@ if (url.value) void openUrl()
       </template>
       <section v-else class="welcome"><h2>Open a SanPy Zarr collection</h2><p>Load a hosted <code>.sanpy.zarr</code> collection URL or choose a local collection folder.</p></section>
     </main>
-    <ResultsPanel v-if="nicePoolOpen && source" :rows="niceRows" :definitions="analysisResultDefinitions" :selected-peak-id="selectedPeakId" @select="selectPeak" />
+    <ResultsPanel v-if="nicePoolOpen && source" :rows="niceRows" :definitions="analysisResultDefinitions" :selected-peak-id="selectedPeakId" :theme="theme" @select="selectPeak" />
     <footer class="app-footer"><span>{{ recording?.name ?? 'No recording' }}</span><span>Sweep {{ recording ? sweepNumber : '—' }}</span><span>Channel {{ recording ? channel + 1 : '—' }}</span><span>Peaks {{ peaks.length }}</span><span class="app-footer__status" :class="{ error: error }">{{ footerStatus }}</span></footer>
   </div>
 </template>
