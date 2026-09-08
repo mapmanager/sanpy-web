@@ -32,7 +32,7 @@ export class SanPyZarrSignalSource implements SignalSource {
     const showCommand = this.#rightAxisSignal === 'command' && command !== undefined
     const showDerivative = this.#rightAxisSignal === 'derivative' && this.selection.channel === this.recording.analysis_channel
     return {
-      id: `${this.recording.id}:${this.selection.sweep}:${this.selection.channel}`,
+      id: `${this.recording.id}:${this.selection.sweep}:${this.selection.channel}:${this.#rightAxisSignal}`,
       sampleCount: this.recording.dimensions.points,
       xStart: 0,
       xStep: 1 / this.recording.sampling_rate_hz,

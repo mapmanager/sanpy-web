@@ -20,6 +20,7 @@ describe('SanPyZarrSignalSource', () => {
   it('describes native raw and command arrays', async () => {
     const source = new SanPyZarrSignalSource(collection, 'recordings/r1/recording.json', recording, { sweep: 0, channel: 0 })
     const description = await source.describe()
+    expect(description.id).toBe('r1:0:0:command')
     expect(description.sampleCount).toBe(100)
     expect(description.series.map(({ id }) => id)).toEqual(['raw', 'command'])
     expect(description.xStep).toBe(0.0001)
@@ -28,6 +29,7 @@ describe('SanPyZarrSignalSource', () => {
   it('offers derivative instead of command on the right axis', async () => {
     const source = new SanPyZarrSignalSource(collection, 'recordings/r1/recording.json', recording, { sweep: 0, channel: 0 }, 'derivative')
     const description = await source.describe()
+    expect(description.id).toBe('r1:0:0:derivative')
     expect(description.yAxes.right).toEqual({ label: 'Derivative', unit: 'mV/ms' })
     expect(description.series.map(({ id }) => id)).toEqual(['raw', 'dvdt'])
   })
