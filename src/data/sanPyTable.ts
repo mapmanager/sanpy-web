@@ -84,7 +84,8 @@ export function nicePoolDataset(rows: NicePoolRow[], definitions: AnalysisResult
   const schema: ColumnSchema[] = columns.map((name) => ({
     name,
     type: nicePoolColumnType(name, definitions),
-    label: definitions[name]?.axis_label ?? name,
+    axis_label: definitions[name]?.axis_label ?? name,
+    category: definitions[name]?.category ?? 'custom',
     ...(name === 'epochLevel' ? { categorical: true } : {}),
   }))
   return { rows, rowIdColumn: 'spikeNumber', schema, preFilterColumns: ['epoch'] }

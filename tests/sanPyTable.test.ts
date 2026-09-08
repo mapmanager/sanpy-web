@@ -43,8 +43,22 @@ describe('loadSanPyTable', () => {
     expect(dataset.schema?.find(({ name }) => name === 'epochLevel')).toEqual({
       name: 'epochLevel',
       type: 'number',
-      label: 'Epoch level',
+      axis_label: 'Epoch level',
+      category: 'stimulus',
       categorical: true,
+    })
+  })
+
+  it('uses documented schema fallbacks for an unknown result column', () => {
+    const dataset = nicePoolDataset([{ spikeNumber: 1, pluginResult: 2 }], {
+      spikeNumber: { type: 'int', axis_label: 'Spike number', category: 'identity' },
+    })
+
+    expect(dataset.schema?.find(({ name }) => name === 'pluginResult')).toEqual({
+      name: 'pluginResult',
+      type: 'string',
+      axis_label: 'pluginResult',
+      category: 'custom',
     })
   })
 })
