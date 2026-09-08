@@ -66,7 +66,6 @@ export function nicePoolRows(rows: AnalysisRow[]): NicePoolRow[] {
 }
 
 function nicePoolColumnType(name: string, definitions: AnalysisResultDefinitions): ColumnType {
-  if (name === 'epochLevel') return 'categorical'
   switch (definitions[name]?.type) {
     case 'float':
     case 'int':
@@ -86,6 +85,7 @@ export function nicePoolDataset(rows: NicePoolRow[], definitions: AnalysisResult
     name,
     type: nicePoolColumnType(name, definitions),
     label: definitions[name]?.axis_label ?? name,
+    ...(name === 'epochLevel' ? { categorical: true } : {}),
   }))
   return { rows, rowIdColumn: 'spikeNumber', schema, preFilterColumns: ['epoch'] }
 }

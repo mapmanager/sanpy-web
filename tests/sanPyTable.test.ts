@@ -42,8 +42,9 @@ describe('loadSanPyTable', () => {
     expect(dataset.preFilterColumns).toEqual(['epoch'])
     expect(dataset.schema?.find(({ name }) => name === 'epochLevel')).toEqual({
       name: 'epochLevel',
-      type: 'categorical',
+      type: 'number',
       label: 'Epoch level',
+      categorical: true,
     })
   })
 })
