@@ -8,6 +8,7 @@ const props = defineProps<{ rows: NicePoolRow[]; definitions: AnalysisResultDefi
 const emit = defineEmits<{ select: [id: string] }>()
 const element = ref<NicePoolElement | null>(null)
 const warning = ref('')
+let controlsInitialized = false
 const presetSpecifications = [
   { name: 'Waveform overview', plots: [['thresholdSec', 'peakVal'], ['thresholdSec', 'thresholdVal']] },
   { name: 'Timing overview', plots: [['thresholdSec', 'isi_ms'], ['thresholdSec', 'spikeFreq_hz']] },
@@ -39,7 +40,12 @@ function buildPresets(dataset: DatasetInput): NicePoolPreset[] {
 
 watch(() => [props.rows, props.definitions] as const, async ([rows]) => {
   await nextTick()
-  if (!rows.length || !element.value) return
+  if (!element.value) return
+  if (!controlsInitialized) {
+    element.value.setControlsCollapsed(true)
+    controlsInitialized = true
+  }
+  if (!rows.length) return
   const dataset = nicePoolDataset(rows, props.definitions)
   element.value.setTheme(props.theme)
   element.value.setShowPresetEditing(false)
@@ -52,4 +58,4 @@ watch(() => props.selectedPeakId, (id) => element.value?.setPrimarySelection(id)
 watch(() => props.theme, async (theme) => { await nextTick(); element.value?.setTheme(theme) })
 function selection(event: Event): void { const id = (event as CustomEvent<{ primaryRowId: string | null }>).detail.primaryRowId; if (id) emit('select', id) }
 </script>
-<template><section class="results"><header><h2>Analysis results</h2><span>{{ rows.length }} peaks</span></header><p v-if="warning" class="error" role="alert">{{ warning }}</p><p v-if="!rows.length" class="empty">No detected peaks for this recording.</p><nice-pool v-else ref="element" @nicepool-selection-change="selection" /></section></template>
+<template><section class="results"><header><h2>Analysis results</h2><span>{{ rows.length }} peaks</span></header><p v-if="warning" class="error" role="alert">{{ warning }}</p><p v-if="!rows.length" class="empty">No detected peaks for this recording.</p><nice-pool v-show="rows.length" ref="element" @nicepool-selection-change="selection" /></section></template>

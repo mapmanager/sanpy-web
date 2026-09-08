@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOpen } from '@lucide/vue'
+import { BookOpen, Moon, Sun } from '@lucide/vue'
 import { computed, nextTick, ref, watch } from 'vue'
 import { SignalViewerWidget, type SignalOverlays, type SignalSource, type SignalViewport } from '@mapmanager/signal-viewer'
 import type { NicePoolRow } from '@mapmanager/nicepool'
@@ -124,7 +124,7 @@ if (url.value) void openUrl()
 
 <template>
   <div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen, 'left-panel-open': appInformationOpen || metadataOpen || detectionParametersOpen }]">
-    <header class="toolbar"><h1>SanPy Web</h1><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><label class="theme-switch"><span>Dark theme</span><input v-model="darkTheme" type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch__track" aria-hidden="true"><span /></span></label><a class="icon-button" href="https://mapmanager.github.io/sanpy-web/docs/" target="_blank" rel="noreferrer" aria-label="Open the SanPy Web documentation" title="Documentation"><BookOpen :size="19" aria-hidden="true" /></a></header>
+    <header class="toolbar"><h1>SanPy Web</h1><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><label class="theme-switch"><Sun class="theme-switch__icon" :class="{ active: !darkTheme }" :size="16" aria-hidden="true" /><input v-model="darkTheme" type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch__track" aria-hidden="true"><span /></span><Moon class="theme-switch__icon" :class="{ active: darkTheme }" :size="16" aria-hidden="true" /></label><a class="icon-button" href="https://mapmanager.github.io/sanpy-web/docs/" target="_blank" rel="noreferrer" aria-label="Open the SanPy Web documentation" title="Documentation"><BookOpen :size="19" aria-hidden="true" /></a></header>
     <AppToolbar :nice-pool-open="nicePoolOpen" :metadata-open="metadataOpen" :detection-parameters-open="detectionParametersOpen" :app-information-open="appInformationOpen" :disabled="!source" @toggle-nice-pool="nicePoolOpen = !nicePoolOpen" @toggle-metadata="toggleMetadata" @toggle-detection-parameters="toggleDetectionParameters" @toggle-app-information="toggleAppInformation" />
     <AppInformationPanel v-if="appInformationOpen" @close="appInformationOpen = false" />
     <JsonValuesPanel v-if="metadataOpen && recording" title="SanPy metadata" :values="metadata" :recording-name="recording.name" @close="metadataOpen = false" />
