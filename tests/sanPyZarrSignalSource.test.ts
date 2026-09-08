@@ -13,7 +13,7 @@ const recording = {
   dimensions: { sweeps: 2, channels: 1, points: 100 }, sampling_rate_hz: 10000,
   protocol: '', acquisition_datetime: '', channels: [{ index: 0, name: 'Vm', unit: 'mV' }],
   command_channels: [{ index: 0, name: 'Command', unit: 'pA' }], analysis_channel: 0,
-  resources: { data: 'data.zarr', analysis_results: { rows: 0, representations: { csv: 'analysis_results.csv' } }, sanpy_metadata: 'metadata/sanpy_metadata.json', detection_parameters: 'metadata/detection_parameters.json', trace_overlays: 'metadata/trace_overlays.json' },
+  resources: { data: 'data.zarr', analysis_results: { rows: 0, representations: { csv: 'analysis_results.csv' } }, sanpy_metadata: 'metadata/sanpy_metadata.json', detection_parameters: 'metadata/detection_parameters.json', analysis_result_definitions: 'metadata/analysis_result_definitions.json', trace_overlays: 'metadata/trace_overlays.json' },
 } satisfies SanPyRecording
 
 describe('SanPyZarrSignalSource', () => {

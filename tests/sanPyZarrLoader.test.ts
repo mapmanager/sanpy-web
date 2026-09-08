@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
+import { loadAnalysisResultDefinitions, loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
 import type { LoadedSanPyCollection } from '../src/models/traceCollection'
 
 const valid = {
@@ -57,6 +57,13 @@ describe('loadSanPyCollection', () => {
     const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
     source.fetch = fetchJson({ detectionName: 'Fast Neuron', dvdtThreshold: 20 }) as LoadedSanPyCollection['fetch']
     await expect(loadDetectionParameters(source, valid.members[0].recording, 'metadata/detection_parameters.json')).resolves.toEqual({ detectionName: 'Fast Neuron', dvdtThreshold: 20 })
+  })
+
+  it('loads axis labels and categories from analysis-result definitions', async () => {
+    const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
+    const definitions = { peakVal: { axis_label: 'Peak voltage (mV)', category: 'waveform' } }
+    source.fetch = fetchJson(definitions) as LoadedSanPyCollection['fetch']
+    await expect(loadAnalysisResultDefinitions(source, valid.members[0].recording, 'metadata/analysis_result_definitions.json')).resolves.toEqual(definitions)
   })
 
   it('rejects duplicate runtime overlay identifiers', async () => {

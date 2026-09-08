@@ -1,5 +1,6 @@
 import type {
   LoadedSanPyCollection,
+  AnalysisResultDefinitions,
   ResourceFetch,
   SanPyCollection,
   SanPyRecording,
@@ -62,6 +63,7 @@ export async function loadSanPyRecording(
   if (!relativePath(recording.resources.data)
     || !relativePath(recording.resources.sanpy_metadata)
     || !relativePath(recording.resources.detection_parameters)
+    || !relativePath(recording.resources.analysis_result_definitions)
     || !relativePath(recording.resources.trace_overlays)) {
     throw new Error('Invalid SanPy Zarr recording resource path')
   }
@@ -94,6 +96,23 @@ export async function loadDetectionParameters(
   const parameters = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
   if (!object(parameters)) throw new Error('Invalid SanPy detection-parameters document')
   return parameters
+}
+
+export async function loadAnalysisResultDefinitions(
+  source: LoadedSanPyCollection,
+  recordingPath: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<AnalysisResultDefinitions> {
+  const recordingUrl = new URL(recordingPath, source.root)
+  const definitions = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
+  if (!object(definitions)) throw new Error('Invalid SanPy analysis-result definitions document')
+  for (const [name, value] of Object.entries(definitions)) {
+    if (!object(value) || typeof value.axis_label !== 'string' || !value.axis_label || typeof value.category !== 'string') {
+      throw new Error(`Invalid SanPy analysis-result definition ${JSON.stringify(name)}`)
+    }
+  }
+  return definitions as AnalysisResultDefinitions
 }
 
 export async function loadTraceOverlays(

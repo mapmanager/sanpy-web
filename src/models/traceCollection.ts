@@ -48,6 +48,7 @@ export interface SanPyRecording {
     analysis_results: SanPyTableResource
     sanpy_metadata: string
     detection_parameters: string
+    analysis_result_definitions: string
     trace_overlays: string
   }
 }
@@ -62,4 +63,6 @@ export interface TraceOverlayDefinition {
 }
 
 export interface TraceOverlayDocument { overlays: TraceOverlayDefinition[] }
+export interface AnalysisResultDefinition { axis_label: string; category: string; [key: string]: unknown }
+export type AnalysisResultDefinitions = Record<string, AnalysisResultDefinition>
 export interface LoadedSanPyCollection { root: URL; fetch: ResourceFetch; collection: SanPyCollection }

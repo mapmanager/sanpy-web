@@ -11,9 +11,9 @@ import ResultsPanel from './components/ResultsPanel.vue'
 import { SanPyDerivativeSignalSource, SanPyZarrSignalSource, type RightAxisSignal } from './data/sanPyZarrSignalSource'
 import { loadSanPyTable, nicePoolRows, type AnalysisRow } from './data/sanPyTable'
 import { createDirectoryFetch, directoryPickerSupported, pickTraceCollection } from './data/resourceFetch'
-import { loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadSanPyRecording, loadTraceOverlays } from './data/sanPyZarrLoader'
+import { loadAnalysisResultDefinitions, loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadSanPyRecording, loadTraceOverlays } from './data/sanPyZarrLoader'
 import { overlaySeries, resultIdFromOverlay } from './data/traceOverlays'
-import type { LoadedSanPyCollection, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
+import type { AnalysisResultDefinitions, LoadedSanPyCollection, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
 
 interface ViewerApi {
   setSource(source: SignalSource): Promise<void>
@@ -38,6 +38,7 @@ const metadataOpen = ref(false)
 const metadata = ref<Record<string, unknown>>({})
 const detectionParametersOpen = ref(false)
 const detectionParameters = ref<Record<string, unknown>>({})
+const analysisResultDefinitions = ref<AnalysisResultDefinitions>({})
 const rightAxisSignal = ref<RightAxisSignal>('command')
 let synchronizingViewport = false
 const niceRows = computed<NicePoolRow[]>(() => nicePoolRows(peaks.value))
@@ -57,7 +58,7 @@ const sweepNumber = computed({
 })
 
 async function openCollection(next: LoadedSanPyCollection): Promise<void> {
-  source.value = next; selectedId.value = null; recording.value = null; recordingPath.value = null; peaks.value = []; overlayDefinitions.value = []; metadata.value = {}; detectionParameters.value = {}
+  source.value = next; selectedId.value = null; recording.value = null; recordingPath.value = null; peaks.value = []; overlayDefinitions.value = []; metadata.value = {}; detectionParameters.value = {}; analysisResultDefinitions.value = {}
   const first = next.collection.members[0]; if (first) await selectRecording(first.id)
 }
 async function openUrl(): Promise<void> {
@@ -74,6 +75,7 @@ async function selectRecording(id: string): Promise<void> {
     peaks.value = await loadSanPyTable(collection, member.recording, recording.value.resources.analysis_results)
     metadata.value = await loadSanPyMetadata(collection, member.recording, recording.value.resources.sanpy_metadata)
     detectionParameters.value = await loadDetectionParameters(collection, member.recording, recording.value.resources.detection_parameters)
+    analysisResultDefinitions.value = await loadAnalysisResultDefinitions(collection, member.recording, recording.value.resources.analysis_result_definitions)
     overlayDefinitions.value = (await loadTraceOverlays(collection, member.recording, recording.value.resources.trace_overlays)).overlays
     await updateViewer()
   })
@@ -142,7 +144,7 @@ if (url.value) void openUrl()
       </template>
       <section v-else class="welcome"><h2>Open a SanPy Zarr collection</h2><p>Load a hosted <code>.sanpy.zarr</code> collection URL or choose a local collection folder.</p></section>
     </main>
-    <ResultsPanel v-if="nicePoolOpen && source" :rows="niceRows" :selected-peak-id="selectedPeakId" @select="selectPeak" />
+    <ResultsPanel v-if="nicePoolOpen && source" :rows="niceRows" :definitions="analysisResultDefinitions" :selected-peak-id="selectedPeakId" @select="selectPeak" />
     <footer class="app-footer"><span>{{ recording?.name ?? 'No recording' }}</span><span>Sweep {{ recording ? sweepNumber : '—' }}</span><span>Channel {{ recording ? channel + 1 : '—' }}</span><span>Peaks {{ peaks.length }}</span><span class="app-footer__status" :class="{ error: error }">{{ footerStatus }}</span></footer>
   </div>
 </template>
