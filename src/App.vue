@@ -35,6 +35,13 @@ const theme = computed<'dark' | 'light'>(() => darkTheme.value ? 'dark' : 'light
 const viewer = ref<ViewerApi | null>(null)
 const derivativeViewer = ref<ViewerApi | null>(null)
 const nicePoolOpen = ref(false)
+const NICEPOOL_MIN_WIDTH = 0
+const NICEPOOL_MAX_WIDTH = 1200
+const NICEPOOL_DEFAULT_WIDTH = 720
+const NICEPOOL_CLOSE_WIDTH = 8
+const nicePoolWidth = ref(NICEPOOL_DEFAULT_WIDTH)
+const nicePoolResizing = ref(false)
+let nicePoolDrag: { pointerId: number; startX: number; startWidth: number } | null = null
 const appInformationOpen = ref(false)
 const metadataOpen = ref(false)
 const metadata = ref<Record<string, unknown>>({})
@@ -112,6 +119,38 @@ async function mirrorViewport(target: ViewerApi | null, viewport: SignalViewport
 function toggleMetadata(): void { metadataOpen.value = !metadataOpen.value; if (metadataOpen.value) { detectionParametersOpen.value = false; appInformationOpen.value = false } }
 function toggleDetectionParameters(): void { detectionParametersOpen.value = !detectionParametersOpen.value; if (detectionParametersOpen.value) { metadataOpen.value = false; appInformationOpen.value = false } }
 function toggleAppInformation(): void { appInformationOpen.value = !appInformationOpen.value; if (appInformationOpen.value) { metadataOpen.value = false; detectionParametersOpen.value = false } }
+function resizeNicePool(requested: number): void { nicePoolWidth.value = Math.min(NICEPOOL_MAX_WIDTH, Math.max(NICEPOOL_MIN_WIDTH, requested)) }
+function toggleNicePool(): void {
+  nicePoolOpen.value = !nicePoolOpen.value
+  if (nicePoolOpen.value && nicePoolWidth.value < NICEPOOL_CLOSE_WIDTH) nicePoolWidth.value = NICEPOOL_DEFAULT_WIDTH
+}
+function finishNicePoolResize(): void {
+  nicePoolDrag = null
+  nicePoolResizing.value = false
+  if (nicePoolWidth.value < NICEPOOL_CLOSE_WIDTH) {
+    nicePoolOpen.value = false
+    nicePoolWidth.value = NICEPOOL_DEFAULT_WIDTH
+  }
+}
+function nicePoolPointerDown(event: PointerEvent): void {
+  nicePoolDrag = { pointerId: event.pointerId, startX: event.clientX, startWidth: nicePoolWidth.value }
+  nicePoolResizing.value = true
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+function nicePoolPointerMove(event: PointerEvent): void {
+  if (nicePoolDrag?.pointerId === event.pointerId) resizeNicePool(nicePoolDrag.startWidth - (event.clientX - nicePoolDrag.startX))
+}
+function nicePoolPointerUp(event: PointerEvent): void { if (nicePoolDrag?.pointerId === event.pointerId) finishNicePoolResize() }
+function nicePoolKeyDown(event: KeyboardEvent): void {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const step = event.shiftKey ? 40 : 10
+  if (event.key === 'ArrowLeft') resizeNicePool(nicePoolWidth.value + step)
+  else if (event.key === 'ArrowRight') resizeNicePool(nicePoolWidth.value - step)
+  else if (event.key === 'Home') resizeNicePool(NICEPOOL_MIN_WIDTH)
+  else resizeNicePool(NICEPOOL_MAX_WIDTH)
+  if (nicePoolWidth.value < NICEPOOL_CLOSE_WIDTH) finishNicePoolResize()
+}
 async function changeRightAxis(event: Event): Promise<void> {
   rightAxisSignal.value = (event.target as HTMLSelectElement).value as RightAxisSignal
   await updateViewer(true)
@@ -123,9 +162,9 @@ if (url.value) void openUrl()
 </script>
 
 <template>
-  <div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen, 'left-panel-open': appInformationOpen || metadataOpen || detectionParametersOpen }]">
+  <div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen, 'nicepool-resizing': nicePoolResizing, 'left-panel-open': appInformationOpen || metadataOpen || detectionParametersOpen }]" :style="{ '--nicepool-open-width': `${nicePoolWidth}px` }">
     <header class="toolbar"><h1>SanPy Web</h1><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><label class="theme-switch"><Sun class="theme-switch__icon" :class="{ active: !darkTheme }" :size="16" aria-hidden="true" /><input v-model="darkTheme" type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch__track" aria-hidden="true"><span /></span><Moon class="theme-switch__icon" :class="{ active: darkTheme }" :size="16" aria-hidden="true" /></label><a class="icon-button" href="https://mapmanager.github.io/sanpy-web/docs/" target="_blank" rel="noreferrer" aria-label="Open the SanPy Web documentation" title="Documentation"><BookOpen :size="19" aria-hidden="true" /></a></header>
-    <AppToolbar :nice-pool-open="nicePoolOpen" :metadata-open="metadataOpen" :detection-parameters-open="detectionParametersOpen" :app-information-open="appInformationOpen" :disabled="!source" @toggle-nice-pool="nicePoolOpen = !nicePoolOpen" @toggle-metadata="toggleMetadata" @toggle-detection-parameters="toggleDetectionParameters" @toggle-app-information="toggleAppInformation" />
+    <AppToolbar :nice-pool-open="nicePoolOpen" :metadata-open="metadataOpen" :detection-parameters-open="detectionParametersOpen" :app-information-open="appInformationOpen" :disabled="!source" @toggle-nice-pool="toggleNicePool" @toggle-metadata="toggleMetadata" @toggle-detection-parameters="toggleDetectionParameters" @toggle-app-information="toggleAppInformation" />
     <AppInformationPanel v-if="appInformationOpen" @close="appInformationOpen = false" />
     <JsonValuesPanel v-if="metadataOpen && recording" title="SanPy metadata" :values="metadata" :recording-name="recording.name" @close="metadataOpen = false" />
     <JsonValuesPanel v-if="detectionParametersOpen && recording" title="Detection parameters" :values="detectionParameters" :recording-name="recording.name" @close="detectionParametersOpen = false" />
@@ -148,6 +187,7 @@ if (url.value) void openUrl()
       </template>
       <section v-else class="welcome"><h2>Open a SanPy Zarr collection</h2><p>Load a hosted <code>.sanpy.zarr</code> collection URL or choose a local collection folder.</p></section>
     </main>
+    <div v-if="nicePoolOpen" class="resize-handle resize-handle--vertical resize-handle--nicepool" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize NicePool" :aria-valuemin="NICEPOOL_MIN_WIDTH" :aria-valuemax="NICEPOOL_MAX_WIDTH" :aria-valuenow="Math.round(nicePoolWidth)" @pointerdown="nicePoolPointerDown" @pointermove="nicePoolPointerMove" @pointerup="nicePoolPointerUp" @pointercancel="nicePoolPointerUp" @keydown="nicePoolKeyDown"><span aria-hidden="true" /></div>
     <ResultsPanel v-if="nicePoolOpen && source" :rows="niceRows" :definitions="analysisResultDefinitions" :selected-peak-id="selectedPeakId" :theme="theme" @select="selectPeak" />
     <footer class="app-footer"><span>{{ recording?.name ?? 'No recording' }}</span><span>Sweep {{ recording ? sweepNumber : '—' }}</span><span>Channel {{ recording ? channel + 1 : '—' }}</span><span>Peaks {{ peaks.length }}</span><span class="app-footer__status" :class="{ error: error }">{{ footerStatus }}</span></footer>
   </div>
