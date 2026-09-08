@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { NicePoolElement, createNicePoolState, registerNicePoolElement, type DatasetInput, type NicePoolPreset, type NicePoolRow, type NicePoolTheme } from '@mapmanager/nicepool'
+import { NicePoolElement, createNicePoolState, registerNicePoolElement, type DatasetInput, type NicePoolPreset, type NicePoolRow, type NicePoolTheme, type PlotState } from '@mapmanager/nicepool'
 import { nextTick, ref, watch } from 'vue'
 import { nicePoolDataset } from '../data/sanPyTable'
 import type { AnalysisResultDefinitions } from '../models/traceCollection'
@@ -9,17 +9,29 @@ const emit = defineEmits<{ select: [id: string] }>()
 const element = ref<NicePoolElement | null>(null)
 const warning = ref('')
 let controlsInitialized = false
-const presetSpecifications = [
-  { name: 'Waveform overview', plots: [['thresholdSec', 'peakVal'], ['thresholdSec', 'thresholdVal']] },
-  { name: 'Timing overview', plots: [['thresholdSec', 'isi_ms'], ['thresholdSec', 'spikeFreq_hz']] },
-] as const
+const presetSpecifications: readonly { name: string; plots: readonly Partial<PlotState>[] }[] = [
+  {
+    name: 'FI Plots',
+    plots: [
+      { plotType: 'swarm', yColumn: 'spikeFreq_hz', groupColumn: 'epochLevel', showLegend: false, showPlotlyToolbar: false },
+      { plotType: 'swarm', yColumn: 'thresholdVal', groupColumn: 'epochLevel', showLegend: false, showPlotlyToolbar: false },
+    ],
+  },
+  {
+    name: 'Timing overview',
+    plots: [
+      { plotType: 'scatter', xColumn: 'thresholdSec', yColumn: 'isi_ms' },
+      { plotType: 'scatter', xColumn: 'thresholdSec', yColumn: 'spikeFreq_hz' },
+    ],
+  },
+]
 
 function buildPresets(dataset: DatasetInput): NicePoolPreset[] {
   const columns = new Set(dataset.rows.flatMap((row) => Object.keys(row)))
   const definedColumns = new Set(Object.keys(props.definitions))
   const missingMessages: string[] = []
   const presets = presetSpecifications.flatMap((specification) => {
-    const required = [...new Set(specification.plots.flat())]
+    const required = [...new Set(specification.plots.flatMap((plot) => [plot.xColumn, plot.yColumn, plot.groupColumn].filter((column): column is string => Boolean(column))))]
     const missing = required.filter((column) => !columns.has(column) || !definedColumns.has(column))
     if (missing.length) {
       missingMessages.push(`${specification.name}: missing ${missing.join(', ')}`)
@@ -30,7 +42,7 @@ function buildPresets(dataset: DatasetInput): NicePoolPreset[] {
       name: specification.name,
       state: createNicePoolState(dataset, {
         layout: '2x1',
-        plots: specification.plots.map(([xColumn, yColumn]) => ({ plotType: 'scatter', xColumn, yColumn })),
+        plots: specification.plots,
       }),
     }]
   })
