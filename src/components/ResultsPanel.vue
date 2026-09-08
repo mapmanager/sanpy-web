@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { NicePoolElement, createNicePoolState, registerNicePoolElement, type DatasetInput, type NicePoolPreset, type NicePoolRow } from '@mapmanager/nicepool'
 import { nextTick, ref, watch } from 'vue'
+import { nicePoolDataset } from '../data/sanPyTable'
 import type { AnalysisResultDefinitions } from '../models/traceCollection'
 registerNicePoolElement()
 const props = defineProps<{ rows: NicePoolRow[]; definitions: AnalysisResultDefinitions; selectedPeakId: string | null }>()
@@ -39,7 +40,7 @@ function buildPresets(dataset: DatasetInput): NicePoolPreset[] {
 watch(() => [props.rows, props.definitions] as const, async ([rows]) => {
   await nextTick()
   if (!rows.length || !element.value) return
-  const dataset = { rows, rowIdColumn: 'spikeNumber' }
+  const dataset = nicePoolDataset(rows, props.definitions)
   element.value.setShowPresetEditing(false)
   element.value.setData(dataset)
   const presets = buildPresets(dataset)

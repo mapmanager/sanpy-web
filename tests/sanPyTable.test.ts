@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadSanPyTable } from '../src/data/sanPyTable'
+import { loadSanPyTable, nicePoolDataset } from '../src/data/sanPyTable'
 import type { LoadedSanPyCollection } from '../src/models/traceCollection'
 
 const collection: LoadedSanPyCollection = {
@@ -26,5 +26,24 @@ describe('loadSanPyTable', () => {
       'recordings/r1/recording.json',
       { rows: 2, representations: { csv: 'analysis_results.csv' } },
     )).rejects.toThrow('row count mismatch')
+  })
+
+  it('configures epoch filtering and categorical epoch levels for NicePool', () => {
+    const rows = [{ spikeNumber: 1, epoch: 0, epochLevel: -100, peakVal: 42 }]
+    const definitions = {
+      spikeNumber: { type: 'int', axis_label: 'Spike number', category: 'identity' },
+      epoch: { type: 'int', axis_label: 'Epoch', category: 'identity' },
+      epochLevel: { type: 'float', axis_label: 'Epoch level', category: 'stimulus' },
+      peakVal: { type: 'float', axis_label: 'Peak voltage (mV)', category: 'waveform' },
+    }
+
+    const dataset = nicePoolDataset(rows, definitions)
+
+    expect(dataset.preFilterColumns).toEqual(['epoch'])
+    expect(dataset.schema?.find(({ name }) => name === 'epochLevel')).toEqual({
+      name: 'epochLevel',
+      type: 'categorical',
+      label: 'Epoch level',
+    })
   })
 })

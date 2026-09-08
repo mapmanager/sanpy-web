@@ -1,7 +1,7 @@
 import { parquetReadObjects } from 'hyparquet'
 import Papa from 'papaparse'
-import type { NicePoolRow } from '@mapmanager/nicepool'
-import type { LoadedSanPyCollection, SanPyTableResource } from '../models/traceCollection'
+import type { ColumnSchema, ColumnType, DatasetInput, NicePoolRow } from '@mapmanager/nicepool'
+import type { AnalysisResultDefinitions, LoadedSanPyCollection, SanPyTableResource } from '../models/traceCollection'
 import { relativePath } from './sanPyZarrLoader'
 
 export type AnalysisRow = Record<string, unknown>
@@ -63,4 +63,29 @@ function scalar(value: unknown): string | number | boolean | null {
 export function nicePoolRows(rows: AnalysisRow[]): NicePoolRow[] {
   const columns = [...new Set(rows.flatMap(Object.keys))]
   return rows.map((row) => Object.fromEntries(columns.map((column) => [column, scalar(row[column])])))
+}
+
+function nicePoolColumnType(name: string, definitions: AnalysisResultDefinitions): ColumnType {
+  if (name === 'epochLevel') return 'categorical'
+  switch (definitions[name]?.type) {
+    case 'float':
+    case 'int':
+      return 'number'
+    case 'bool':
+    case 'boolean':
+      return 'boolean'
+    default:
+      return 'string'
+  }
+}
+
+/** Build the complete NicePool dataset contract from SanPy result metadata. */
+export function nicePoolDataset(rows: NicePoolRow[], definitions: AnalysisResultDefinitions): DatasetInput {
+  const columns = [...new Set(rows.flatMap(Object.keys))]
+  const schema: ColumnSchema[] = columns.map((name) => ({
+    name,
+    type: nicePoolColumnType(name, definitions),
+    label: definitions[name]?.axis_label ?? name,
+  }))
+  return { rows, rowIdColumn: 'spikeNumber', schema, preFilterColumns: ['epoch'] }
 }
