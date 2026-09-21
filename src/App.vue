@@ -12,6 +12,7 @@ import ResultsPanel from './components/ResultsPanel.vue'
 import { SanPyDerivativeSignalSource, SanPyZarrSignalSource, type RightAxisSignal } from './data/sanPyZarrSignalSource'
 import { loadSanPyTable, nicePoolRows, type AnalysisRow } from './data/sanPyTable'
 import { createDirectoryFetch, directoryPickerSupported, pickTraceCollection } from './data/resourceFetch'
+import { loadSampleCatalog, type SanPySample } from './data/sampleCatalog'
 import { loadAnalysisResultDefinitions, loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadSanPyRecording, loadTraceOverlays } from './data/sanPyZarrLoader'
 import { overlaySeries, resultIdFromOverlay } from './data/traceOverlays'
 import type { AnalysisResultDefinitions, LoadedSanPyCollection, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
@@ -26,6 +27,8 @@ interface ViewerApi {
   getViewport(): SignalViewport | null
 }
 const url = ref(new URLSearchParams(location.search).get('collection') ?? '')
+const samples = ref<SanPySample[]>([])
+const catalogError = ref<string | null>(null)
 const source = ref<LoadedSanPyCollection | null>(null); const recording = ref<SanPyRecording | null>(null)
 const selectedId = ref<string | null>(null); const sweep = ref(0); const channel = ref(0)
 const recordingPath = ref<string | null>(null)
@@ -72,6 +75,10 @@ async function openCollection(next: LoadedSanPyCollection): Promise<void> {
 }
 async function openUrl(): Promise<void> {
   if (!url.value.trim()) return; await perform(async () => { const next = await loadSanPyCollection(url.value); await openCollection(next); history.replaceState(null, '', `?collection=${encodeURIComponent(next.root.href)}`) })
+}
+async function openSample(event: Event): Promise<void> {
+  url.value = (event.target as HTMLSelectElement).value
+  await openUrl()
 }
 async function openFolder(): Promise<void> {
   await perform(async () => { const handle = await pickTraceCollection(); const root = new URL(`https://local.sanpy/${encodeURIComponent(handle.name)}/`); await openCollection(await loadSanPyCollection(root, createDirectoryFetch(handle, root))); history.replaceState(null, '', location.pathname) })
@@ -158,18 +165,31 @@ async function changeRightAxis(event: Event): Promise<void> {
 }
 async function perform(action: () => Promise<void>): Promise<void> { loading.value = true; error.value = null; try { await action() } catch (reason) { if (!(reason instanceof DOMException && reason.name === 'AbortError')) error.value = reason instanceof Error ? reason.message : String(reason) } finally { loading.value = false } }
 const footerStatus = computed(() => error.value ? `Error: ${error.value}` : loading.value ? 'Loading…' : source.value ? 'Ready' : 'No collection open')
-if (url.value) void openUrl()
+async function initialize(): Promise<void> {
+  const explicitCollection = Boolean(url.value)
+  if (explicitCollection) void openUrl()
+  try {
+    samples.value = await loadSampleCatalog()
+  } catch (reason) {
+    catalogError.value = reason instanceof Error ? reason.message : String(reason)
+  }
+  if (!explicitCollection && samples.value[0]) {
+    url.value = samples.value[0].url
+    await openUrl()
+  }
+}
+void initialize()
 </script>
 
 <template>
   <div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen, 'nicepool-resizing': nicePoolResizing, 'left-panel-open': appInformationOpen || metadataOpen || detectionParametersOpen }]" :style="{ '--nicepool-open-width': `${nicePoolWidth}px` }">
-    <header class="toolbar"><h1>SanPy Web</h1><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><label class="theme-switch"><Sun class="theme-switch__icon" :class="{ active: !darkTheme }" :size="16" aria-hidden="true" /><input v-model="darkTheme" type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch__track" aria-hidden="true"><span /></span><Moon class="theme-switch__icon" :class="{ active: darkTheme }" :size="16" aria-hidden="true" /></label><a class="icon-button" href="https://mapmanager.github.io/sanpy-web/docs/" target="_blank" rel="noreferrer" aria-label="Open the SanPy Web documentation" title="Documentation"><BookOpen :size="19" aria-hidden="true" /></a></header>
+    <header class="toolbar"><h1>SanPy Web</h1><label v-if="samples.length" class="sample-picker">Sample<select :value="samples.some((sample) => sample.url === url) ? url : ''" :disabled="loading" @change="openSample"><option value="" disabled>Choose a sample…</option><option v-for="sample in samples" :key="sample.url" :value="sample.url">{{ sample.name }} — {{ sample.description }}</option></select></label><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><label class="theme-switch"><Sun class="theme-switch__icon" :class="{ active: !darkTheme }" :size="16" aria-hidden="true" /><input v-model="darkTheme" type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch__track" aria-hidden="true"><span /></span><Moon class="theme-switch__icon" :class="{ active: darkTheme }" :size="16" aria-hidden="true" /></label><a class="icon-button" href="https://mapmanager.github.io/sanpy-web/docs/" target="_blank" rel="noreferrer" aria-label="Open the SanPy Web documentation" title="Documentation"><BookOpen :size="19" aria-hidden="true" /></a></header>
     <AppToolbar :nice-pool-open="nicePoolOpen" :metadata-open="metadataOpen" :detection-parameters-open="detectionParametersOpen" :app-information-open="appInformationOpen" :disabled="!source" @toggle-nice-pool="toggleNicePool" @toggle-metadata="toggleMetadata" @toggle-detection-parameters="toggleDetectionParameters" @toggle-app-information="toggleAppInformation" />
     <AppInformationPanel v-if="appInformationOpen" @close="appInformationOpen = false" />
     <JsonValuesPanel v-if="metadataOpen && recording" title="SanPy metadata" :values="metadata" :recording-name="recording.name" @close="metadataOpen = false" />
     <JsonValuesPanel v-if="detectionParametersOpen && recording" title="Detection parameters" :values="detectionParameters" :recording-name="recording.name" @close="detectionParametersOpen = false" />
     <main class="app-main">
-      <p v-if="error" class="error" role="alert">{{ error }}</p>
+      <p v-if="error" class="error" role="alert">{{ error }}</p><p v-else-if="catalogError && !source" class="catalog-warning" role="status">Sample catalog unavailable. You can still open a URL or local folder.</p>
       <template v-if="source">
         <ResizableSection label="Resize collection table" :initial-height="230" :maximum-height="600"><section class="collection"><CollectionTable :members="source.collection.members" :selected-id="selectedId" @select="selectRecording" /></section></ResizableSection>
         <section v-if="recording" class="recording">
