@@ -7,17 +7,24 @@ docs_dir: docs
 site_dir: dist/docs
 
 nav:
-  - Home: index.md
-  - User guide:
-      - Overview: user-guide/index.md
-      - Opening data: user-guide/opening-data.md
+  - Welcome to SanPy Web: index.md
   - Technical information:
       - Overview: technical/index.md
       - Development: technical/development.md
-      - SanPy Zarr contract: technical/sanpy-zarr-contract.md
 
 theme:
   name: material
+  logo: assets/sanpy-transparent.png
+  favicon: assets/sanpy-transparent.png
+  palette:
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
   features:
     - navigation.sections
     - navigation.indexes

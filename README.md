@@ -1,13 +1,34 @@
 # SanPy Web
 
-Static Vue/TypeScript viewer for self-contained SanPy Zarr collections. It
-supports hosted URLs and user-selected local folders, recording discovery,
-sweep/channel selection, range-loaded Zarr v3 signals, CSV or Parquet analysis
-results, runtime-defined trace overlays, and NicePool analysis exploration.
+SanPy Web is an online viewer for electrophysiology recordings and their
+analysis performed in the [SanPy](https://cudmore.github.io/SanPy/) desktop
+application. It lets you review recordings and spike-detection results in a web
+browser without opening the SanPy desktop application.
 
 **Open SanPy Web:** https://mapmanager.github.io/sanpy-web/
 
-**Documentation:** https://mapmanager.github.io/sanpy-web/docs/
+
+## What you can do
+
+- Load datasets exported from SanPy.
+- Browse a collection of recordings.
+- View metadata for each recording.
+- View the spike-detection parameters used for the analysis.
+- View individual recordings with detection overlays, including peaks and
+  take-off potentials.
+- Use NicePool to visualize summary results across all sweeps in a recording,
+  including frequency–current (F–I) curves.
+
+For additional details, see the [SanPy Web documentation](https://mapmanager.github.io/sanpy-web/docs/).
+
+
+## Technical overview
+
+SanPy Web is a static Vue/TypeScript viewer for self-contained SanPy Zarr
+collections. It supports hosted URLs and user-selected local folders, recording
+discovery, sweep/channel selection, range-loaded Zarr v3 signals, CSV or Parquet
+analysis results, runtime-defined trace overlays, and NicePool analysis
+exploration.
 
 ## Development
 
@@ -22,8 +43,18 @@ npm run dev
 
 Run the application checks and production build with `npm run check`.
 
-Documentation uses MkDocs Material. After installing `requirements-docs.txt`,
-preview or build it with `npm run docs:serve` or `npm run docs:build`.
+### Local documentation
+
+Documentation uses MkDocs Material and requires
+[`uv`](https://docs.astral.sh/uv/). Start the local documentation server with:
+
+```bash
+npm run docs:serve
+```
+
+Build the documentation with `npm run docs:build`. The npm scripts use `uv` to
+install the pinned dependencies from `requirements-docs.txt`; no manual Python
+environment setup is required.
 
 To inspect the generated sample package, serve its parent directory:
 
