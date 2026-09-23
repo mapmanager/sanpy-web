@@ -19,6 +19,7 @@ import type { AnalysisResultDefinitions, LoadedSanPyCollection, SanPyRecording, 
 
 interface ViewerApi {
   setSource(source: SignalSource, options?: SignalSourceInstallOptions): Promise<void>
+  resize(): void
   setOverlays(value: SignalOverlays): void
   setTheme(theme: 'dark' | 'light'): void
   setLegendVisible(visible: boolean): void
@@ -128,6 +129,8 @@ async function updateViewer(): Promise<void> {
     setPrimaryViewerSource(widget, false),
     derivative ? derivativeViewer.value?.setSource(derivative) : undefined,
   ])
+  widget.resize()
+  derivativeViewer.value?.resize()
 }
 function scatterSeries() { return channel.value === recording.value?.analysis_channel ? overlaySeries(peaks.value, overlayDefinitions.value, sweep.value, ['#00e5ff', '#f472b6', '#fbbf24', '#34d399']) : [] }
 function defaultOverlayPointId(resultId: string | null): string | null { const overlay = overlayDefinitions.value[0]; return resultId && overlay ? `${resultId}:${overlay.id}` : null }
