@@ -223,7 +223,7 @@ void initialize()
     <main class="app-main">
       <p v-if="error" class="error" role="alert">{{ error }}</p><p v-else-if="catalogError && !source" class="catalog-warning" role="status">Sample catalog unavailable. You can still open a URL or local folder.</p>
       <template v-if="source">
-        <ResizableSection label="Resize collection table" :initial-height="230" :maximum-height="600"><section class="collection"><CollectionTable :members="source.collection.members" :selected-id="selectedId" @select="selectRecording" /></section></ResizableSection>
+        <ResizableSection label="Resize collection table" :initial-height="200" :maximum-height="600"><section class="collection"><CollectionTable :members="source.collection.members" :selected-id="selectedId" @select="selectRecording" /></section></ResizableSection>
         <section v-if="recording" class="recording">
           <ResizableSection label="Resize recorded signal" :initial-height="260" :maximum-height="900">
             <div class="recording-primary">
