@@ -114,12 +114,16 @@ async function selectRecording(id: string): Promise<void> {
   })
   if (recordingLoadController === controller) recordingLoadController = null
 }
+async function setViewerSource(widget: ViewerApi, nextSource: SignalSource, options?: SignalSourceInstallOptions): Promise<void> {
+  await widget.setSource(nextSource, options)
+  widget.resize()
+}
 async function setPrimaryViewerSource(widget: ViewerApi, preserveViewport: boolean): Promise<void> {
   if (!source.value || !recording.value || !recordingPath.value) return
   const selection = { sweep: sweep.value, channel: channel.value }
   const previousViewport = preserveViewport ? widget.getViewport() : null
   const traceSource = new SanPyZarrSignalSource(source.value, recordingPath.value, recording.value, selection, rightAxisSignal.value)
-  await widget.setSource(traceSource, {
+  await setViewerSource(widget, traceSource, {
     overlays: { scatterSeries: scatterSeries(), selectedPointId: defaultOverlayPointId(selectedPeakId.value) },
     ...(previousViewport ? { initialViewport: previousViewport } : {}),
   })
@@ -131,12 +135,11 @@ async function updateViewer(preserveViewport = false): Promise<void> {
   const selection = { sweep: sweep.value, channel: channel.value }
   if (!rightAxisChoices.value.some(({ value }) => value === rightAxisSignal.value)) rightAxisSignal.value = rightAxisChoices.value[0]!.value
   const derivative = channel.value === recording.value.analysis_channel ? new SanPyDerivativeSignalSource(source.value, recordingPath.value, recording.value, selection) : null
+  const derivativeWidget = derivativeViewer.value
   await Promise.all([
     setPrimaryViewerSource(widget, preserveViewport),
-    derivative ? derivativeViewer.value?.setSource(derivative, previousViewport ? { initialViewport: previousViewport } : undefined) : undefined,
+    derivative && derivativeWidget ? setViewerSource(derivativeWidget, derivative, previousViewport ? { initialViewport: previousViewport } : undefined) : undefined,
   ])
-  widget.resize()
-  derivativeViewer.value?.resize()
 }
 function scatterSeries() { return channel.value === recording.value?.analysis_channel ? overlaySeries(peaks.value, overlayDefinitions.value, sweep.value, ['#00e5ff', '#f472b6', '#fbbf24', '#34d399']) : [] }
 function defaultOverlayPointId(resultId: string | null): string | null { const overlay = overlayDefinitions.value[0]; return resultId && overlay ? `${resultId}:${overlay.id}` : null }
