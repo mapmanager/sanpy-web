@@ -16,6 +16,7 @@ import { loadSampleCatalog, type SanPySample } from './data/sampleCatalog'
 import { loadAnalysisResultDefinitions, loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadSanPyRecording, loadTraceOverlays } from './data/sanPyZarrLoader'
 import { overlaySeries, resultIdFromOverlay } from './data/traceOverlays'
 import type { AnalysisResultDefinitions, LoadedSanPyCollection, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
+import { createViewportMirror } from './viewportLink'
 
 interface ViewerApi {
   setSource(source: SignalSource, options?: SignalSourceInstallOptions): Promise<void>
@@ -53,9 +54,9 @@ const detectionParametersOpen = ref(false)
 const detectionParameters = ref<Record<string, unknown>>({})
 const analysisResultDefinitions = ref<AnalysisResultDefinitions>({})
 const rightAxisSignal = ref<RightAxisSignal>('command')
-let synchronizingViewport = false
 let recordingLoadController: AbortController | null = null
 let performGeneration = 0
+const mirrorViewport = createViewportMirror()
 const niceRows = computed<NicePoolRow[]>(() => nicePoolRows(peaks.value))
 const rightAxisChoices = computed(() => {
   const choices: Array<{ value: RightAxisSignal; label: string }> = []
@@ -119,15 +120,16 @@ async function setPrimaryViewerSource(widget: ViewerApi, preserveViewport: boole
     ...(previousViewport ? { initialViewport: previousViewport } : {}),
   })
 }
-async function updateViewer(): Promise<void> {
+async function updateViewer(preserveViewport = false): Promise<void> {
   if (!source.value || !recording.value || !recordingPath.value) return
   await nextTick(); const widget = viewer.value; if (!widget) return
+  const previousViewport = preserveViewport ? widget.getViewport() : null
   const selection = { sweep: sweep.value, channel: channel.value }
   if (!rightAxisChoices.value.some(({ value }) => value === rightAxisSignal.value)) rightAxisSignal.value = rightAxisChoices.value[0]!.value
   const derivative = channel.value === recording.value.analysis_channel ? new SanPyDerivativeSignalSource(source.value, recordingPath.value, recording.value, selection) : null
   await Promise.all([
-    setPrimaryViewerSource(widget, false),
-    derivative ? derivativeViewer.value?.setSource(derivative) : undefined,
+    setPrimaryViewerSource(widget, preserveViewport),
+    derivative ? derivativeViewer.value?.setSource(derivative, previousViewport ? { initialViewport: previousViewport } : undefined) : undefined,
   ])
   widget.resize()
   derivativeViewer.value?.resize()
@@ -139,11 +141,6 @@ function configureViewer(widget: ViewerApi | null): void { if (widget) { widget.
 watch(viewer, configureViewer)
 watch(derivativeViewer, configureViewer)
 watch(theme, async (value) => { await nextTick(); viewer.value?.setTheme(value); derivativeViewer.value?.setTheme(value) })
-async function mirrorViewport(target: ViewerApi | null, viewport: SignalViewport): Promise<void> {
-  if (!target || synchronizingViewport) return
-  synchronizingViewport = true
-  try { await target.setViewport(viewport) } finally { synchronizingViewport = false }
-}
 function toggleMetadata(): void { metadataOpen.value = !metadataOpen.value; if (metadataOpen.value) { detectionParametersOpen.value = false; appInformationOpen.value = false } }
 function toggleDetectionParameters(): void { detectionParametersOpen.value = !detectionParametersOpen.value; if (detectionParametersOpen.value) { metadataOpen.value = false; appInformationOpen.value = false } }
 function toggleAppInformation(): void { appInformationOpen.value = !appInformationOpen.value; if (appInformationOpen.value) { metadataOpen.value = false; detectionParametersOpen.value = false } }
@@ -228,7 +225,7 @@ void initialize()
       <template v-if="source">
         <ResizableSection label="Resize collection table" :initial-height="160" :maximum-height="600"><section class="collection"><CollectionTable :members="source.collection.members" :selected-id="selectedId" @select="selectRecording" /></section></ResizableSection>
         <section v-if="recording" class="recording">
-          <header class="recording-header"><div><h2>{{ recording.name }}</h2></div><label>Sweep <input v-model.number="sweepNumber" type="number" min="1" :max="recording.dimensions.sweeps" step="1" @change="updateViewer()"></label><label>Channel <select v-model.number="channel" @change="updateViewer()"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header>
+          <header class="recording-header"><div><h2>{{ recording.name }}</h2></div><label>Sweep <input v-model.number="sweepNumber" type="number" min="1" :max="recording.dimensions.sweeps" step="1" @change="updateViewer(true)"></label><label>Channel <select v-model.number="channel" @change="updateViewer()"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header>
           <div class="plot-title">Recorded signal and command</div>
           <ResizableSection label="Resize recorded signal" :initial-height="180" :maximum-height="900">
             <SignalViewerWidget ref="viewer" class="signal-viewer" @overlay-select="selectPeak" @view-change="mirrorViewport(derivativeViewer, $event)">
