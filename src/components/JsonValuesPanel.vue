@@ -5,7 +5,7 @@ import { X } from '@lucide/vue'
 const props = defineProps<{ title: string; values: Record<string, unknown>; recordingName: string }>()
 defineEmits<{ close: [] }>()
 
-const entries = computed(() => Object.entries(props.values).sort(([left], [right]) => left.localeCompare(right)))
+const entries = computed(() => Object.entries(props.values))
 
 function displayValue(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'

@@ -7,6 +7,8 @@ defineEmits<{ toggleNicePool: []; toggleMetadata: []; toggleDetectionParameters:
 
 <template>
   <nav class="app-toolbar" aria-label="Views">
+    <button type="button" class="icon-button" :class="{ active: metadataOpen }" :disabled="disabled" aria-label="File metadata" title="File metadata" @click="$emit('toggleMetadata')"><FileJson :size="19" aria-hidden="true" /></button>
+    <button type="button" class="icon-button" :class="{ active: detectionParametersOpen }" :disabled="disabled" aria-label="Detection parameters" title="Detection parameters" @click="$emit('toggleDetectionParameters')"><SlidersHorizontal :size="19" aria-hidden="true" /></button>
     <button
       type="button"
       class="icon-button"
@@ -18,8 +20,6 @@ defineEmits<{ toggleNicePool: []; toggleMetadata: []; toggleDetectionParameters:
     >
       <ChartScatter :size="19" aria-hidden="true" />
     </button>
-    <button type="button" class="icon-button" :class="{ active: metadataOpen }" :disabled="disabled" aria-label="SanPy metadata" title="SanPy metadata" @click="$emit('toggleMetadata')"><FileJson :size="19" aria-hidden="true" /></button>
-    <button type="button" class="icon-button" :class="{ active: detectionParametersOpen }" :disabled="disabled" aria-label="Detection parameters" title="Detection parameters" @click="$emit('toggleDetectionParameters')"><SlidersHorizontal :size="19" aria-hidden="true" /></button>
     <button type="button" class="icon-button" :class="{ active: appInformationOpen }" aria-label="App information" title="App information" @click="$emit('toggleAppInformation')"><Info :size="19" aria-hidden="true" /></button>
   </nav>
 </template>
