@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { BookOpen, Moon, Sun } from '@lucide/vue'
 import { computed, nextTick, ref, watch } from 'vue'
-import { SignalViewerWidget, type SignalOverlays, type SignalSource, type SignalViewport } from '@mapmanager/signal-viewer'
+import { SignalViewerWidget, type SignalOverlays, type SignalSource, type SignalSourceInstallOptions, type SignalViewport } from '@mapmanager/signal-viewer'
 import type { NicePoolRow } from '@mapmanager/nicepool'
 import CollectionTable from './components/CollectionTable.vue'
 import AppToolbar from './components/AppToolbar.vue'
@@ -18,7 +18,7 @@ import { overlaySeries, resultIdFromOverlay } from './data/traceOverlays'
 import type { AnalysisResultDefinitions, LoadedSanPyCollection, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
 
 interface ViewerApi {
-  setSource(source: SignalSource): Promise<void>
+  setSource(source: SignalSource, options?: SignalSourceInstallOptions): Promise<void>
   setOverlays(value: SignalOverlays): void
   setTheme(theme: 'dark' | 'light'): void
   setLegendVisible(visible: boolean): void
@@ -53,6 +53,8 @@ const detectionParameters = ref<Record<string, unknown>>({})
 const analysisResultDefinitions = ref<AnalysisResultDefinitions>({})
 const rightAxisSignal = ref<RightAxisSignal>('command')
 let synchronizingViewport = false
+let recordingLoadController: AbortController | null = null
+let performGeneration = 0
 const niceRows = computed<NicePoolRow[]>(() => nicePoolRows(peaks.value))
 const rightAxisChoices = computed(() => {
   const choices: Array<{ value: RightAxisSignal; label: string }> = []
@@ -85,38 +87,54 @@ async function openFolder(): Promise<void> {
 }
 async function selectRecording(id: string): Promise<void> {
   const collection = source.value; if (!collection) return
+  recordingLoadController?.abort()
+  const controller = new AbortController()
+  recordingLoadController = controller
   await perform(async () => {
     const member = collection.collection.members.find((item) => item.id === id); if (!member) throw new Error(`Unknown recording ${id}`)
-    recording.value = await loadSanPyRecording(collection, member.recording); recordingPath.value = member.recording; selectedId.value = id; sweep.value = 0; channel.value = 0; selectedPeakId.value = null
-    peaks.value = await loadSanPyTable(collection, member.recording, recording.value.resources.analysis_results)
-    metadata.value = await loadSanPyMetadata(collection, member.recording, recording.value.resources.sanpy_metadata)
-    detectionParameters.value = await loadDetectionParameters(collection, member.recording, recording.value.resources.detection_parameters)
-    analysisResultDefinitions.value = await loadAnalysisResultDefinitions(collection, member.recording, recording.value.resources.analysis_result_definitions)
-    overlayDefinitions.value = (await loadTraceOverlays(collection, member.recording, recording.value.resources.trace_overlays)).overlays
+    const nextRecording = await loadSanPyRecording(collection, member.recording, controller.signal)
+    const [nextPeaks, nextMetadata, nextDetectionParameters, nextDefinitions, nextOverlays] = await Promise.all([
+      loadSanPyTable(collection, member.recording, nextRecording.resources.analysis_results, controller.signal),
+      loadSanPyMetadata(collection, member.recording, nextRecording.resources.sanpy_metadata, controller.signal),
+      loadDetectionParameters(collection, member.recording, nextRecording.resources.detection_parameters, controller.signal),
+      loadAnalysisResultDefinitions(collection, member.recording, nextRecording.resources.analysis_result_definitions, controller.signal),
+      loadTraceOverlays(collection, member.recording, nextRecording.resources.trace_overlays, controller.signal),
+    ])
+    if (controller.signal.aborted) return
+    recording.value = nextRecording; recordingPath.value = member.recording; selectedId.value = id; sweep.value = 0; channel.value = 0; selectedPeakId.value = null
+    peaks.value = nextPeaks; metadata.value = nextMetadata; detectionParameters.value = nextDetectionParameters
+    analysisResultDefinitions.value = nextDefinitions; overlayDefinitions.value = nextOverlays.overlays
     await updateViewer()
   })
+  if (recordingLoadController === controller) recordingLoadController = null
 }
-async function updateViewer(preserveViewport = false): Promise<void> {
+async function setPrimaryViewerSource(widget: ViewerApi, preserveViewport: boolean): Promise<void> {
+  if (!source.value || !recording.value || !recordingPath.value) return
+  const selection = { sweep: sweep.value, channel: channel.value }
+  const previousViewport = preserveViewport ? widget.getViewport() : null
+  const traceSource = new SanPyZarrSignalSource(source.value, recordingPath.value, recording.value, selection, rightAxisSignal.value)
+  await widget.setSource(traceSource, {
+    overlays: { scatterSeries: scatterSeries(), selectedPointId: defaultOverlayPointId(selectedPeakId.value) },
+    ...(previousViewport ? { initialViewport: previousViewport } : {}),
+  })
+}
+async function updateViewer(): Promise<void> {
   if (!source.value || !recording.value || !recordingPath.value) return
   await nextTick(); const widget = viewer.value; if (!widget) return
   const selection = { sweep: sweep.value, channel: channel.value }
   if (!rightAxisChoices.value.some(({ value }) => value === rightAxisSignal.value)) rightAxisSignal.value = rightAxisChoices.value[0]!.value
-  const previousViewport = preserveViewport ? widget.getViewport() : null
-  widget.setTheme(theme.value)
-  derivativeViewer.value?.setTheme(theme.value)
-  const traceSource = new SanPyZarrSignalSource(source.value, recordingPath.value, recording.value, selection, rightAxisSignal.value)
   const derivative = channel.value === recording.value.analysis_channel ? new SanPyDerivativeSignalSource(source.value, recordingPath.value, recording.value, selection) : null
-  await Promise.all([widget.setSource(traceSource), derivative ? derivativeViewer.value?.setSource(derivative) : undefined])
-  if (previousViewport) await widget.setViewport(previousViewport)
-  const viewport = previousViewport ?? widget.getViewport()
-  if (derivative && viewport) await derivativeViewer.value?.setViewport(viewport)
-  widget.setLegendVisible(false)
-  derivativeViewer.value?.setLegendVisible(false)
-  widget.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: defaultOverlayPointId(selectedPeakId.value) })
+  await Promise.all([
+    setPrimaryViewerSource(widget, false),
+    derivative ? derivativeViewer.value?.setSource(derivative) : undefined,
+  ])
 }
 function scatterSeries() { return channel.value === recording.value?.analysis_channel ? overlaySeries(peaks.value, overlayDefinitions.value, sweep.value, ['#00e5ff', '#f472b6', '#fbbf24', '#34d399']) : [] }
 function defaultOverlayPointId(resultId: string | null): string | null { const overlay = overlayDefinitions.value[0]; return resultId && overlay ? `${resultId}:${overlay.id}` : null }
 function selectPeak(id: string | null): void { selectedPeakId.value = resultIdFromOverlay(id); const pointId = id?.includes(':') ? id : defaultOverlayPointId(id); if (viewer.value) viewer.value.setOverlays({ scatterSeries: scatterSeries(), selectedPointId: pointId }) }
+function configureViewer(widget: ViewerApi | null): void { if (widget) { widget.setTheme(theme.value); widget.setLegendVisible(false) } }
+watch(viewer, configureViewer)
+watch(derivativeViewer, configureViewer)
 watch(theme, async (value) => { await nextTick(); viewer.value?.setTheme(value); derivativeViewer.value?.setTheme(value) })
 async function mirrorViewport(target: ViewerApi | null, viewport: SignalViewport): Promise<void> {
   if (!target || synchronizingViewport) return
@@ -160,10 +178,24 @@ function nicePoolKeyDown(event: KeyboardEvent): void {
 }
 async function changeRightAxis(event: Event): Promise<void> {
   rightAxisSignal.value = (event.target as HTMLSelectElement).value as RightAxisSignal
-  await updateViewer(true)
-  viewer.value?.setAxisRange('right', 'auto')
+  const widget = viewer.value
+  if (!widget) return
+  await setPrimaryViewerSource(widget, true)
+  if (rightAxisSignal.value !== 'none') widget.setAxisRange('right', 'auto')
 }
-async function perform(action: () => Promise<void>): Promise<void> { loading.value = true; error.value = null; try { await action() } catch (reason) { if (!(reason instanceof DOMException && reason.name === 'AbortError')) error.value = reason instanceof Error ? reason.message : String(reason) } finally { loading.value = false } }
+async function perform(action: () => Promise<void>): Promise<void> {
+  const generation = ++performGeneration
+  loading.value = true; error.value = null
+  try {
+    await action()
+  } catch (reason) {
+    if (generation === performGeneration && !(reason instanceof DOMException && reason.name === 'AbortError')) {
+      error.value = reason instanceof Error ? reason.message : String(reason)
+    }
+  } finally {
+    if (generation === performGeneration) loading.value = false
+  }
+}
 const footerStatus = computed(() => error.value ? `Error: ${error.value}` : loading.value ? 'Loading…' : source.value ? 'Ready' : 'No collection open')
 async function initialize(): Promise<void> {
   const explicitCollection = Boolean(url.value)
