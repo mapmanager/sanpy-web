@@ -225,14 +225,12 @@ void initialize()
       <template v-if="source">
         <ResizableSection label="Resize collection table" :initial-height="200" :maximum-height="600"><section class="collection"><CollectionTable :members="source.collection.members" :selected-id="selectedId" @select="selectRecording" /></section></ResizableSection>
         <section v-if="recording" class="recording">
-          <ResizableSection label="Resize recorded signal" :initial-height="260" :maximum-height="900">
-            <div class="recording-primary">
-              <header class="recording-header"><div><h2>{{ recording.name }}</h2></div><label>Sweep <input v-model.number="sweepNumber" type="number" min="1" :max="recording.dimensions.sweeps" step="1" @change="updateViewer()"></label><label>Channel <select v-model.number="channel" @change="updateViewer()"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header>
-              <div class="plot-title">Recorded signal and command</div>
-              <SignalViewerWidget ref="viewer" class="signal-viewer" @overlay-select="selectPeak" @view-change="mirrorViewport(derivativeViewer, $event)">
-                <template #options><fieldset><legend>Right axis</legend><label><span class="option-label">Signal</span><select :value="rightAxisSignal" @change="changeRightAxis"><option v-for="choice in rightAxisChoices" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select></label></fieldset></template>
-              </SignalViewerWidget>
-            </div>
+          <header class="recording-header"><div><h2>{{ recording.name }}</h2></div><label>Sweep <input v-model.number="sweepNumber" type="number" min="1" :max="recording.dimensions.sweeps" step="1" @change="updateViewer()"></label><label>Channel <select v-model.number="channel" @change="updateViewer()"><option v-for="item in recording.channels" :key="item.index" :value="item.index">{{ item.index + 1 }} — {{ item.name }}</option></select></label></header>
+          <div class="plot-title">Recorded signal and command</div>
+          <ResizableSection label="Resize recorded signal" :initial-height="150" :maximum-height="900">
+            <SignalViewerWidget ref="viewer" class="signal-viewer" @overlay-select="selectPeak" @view-change="mirrorViewport(derivativeViewer, $event)">
+              <template #options><fieldset><legend>Right axis</legend><label><span class="option-label">Signal</span><select :value="rightAxisSignal" @change="changeRightAxis"><option v-for="choice in rightAxisChoices" :key="choice.value" :value="choice.value">{{ choice.label }}</option></select></label></fieldset></template>
+            </SignalViewerWidget>
           </ResizableSection>
           <template v-if="channel === recording.analysis_channel"><div class="plot-title">Signal derivative</div><SignalViewerWidget ref="derivativeViewer" class="derivative-viewer" @view-change="mirrorViewport(viewer, $event)" /></template>
         </section>
