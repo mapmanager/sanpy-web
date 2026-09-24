@@ -66,7 +66,7 @@ jobs:
         working-directory: sanpy-web
 
       - name: Build documentation
-        run: npm run docs:build
+        run: python -m mkdocs build --strict
         working-directory: sanpy-web
 
       - name: Configure GitHub Pages
