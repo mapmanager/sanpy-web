@@ -28,30 +28,37 @@ describe('loadSanPyTable', () => {
     )).rejects.toThrow('row count mismatch')
   })
 
-  it('configures epoch filtering and categorical epoch levels for NicePool', () => {
-    const rows = [{ spikeNumber: 1, epoch: 0, epochLevel: -100, peakVal: 42 }]
+  it('configures contract-declared plot groups for NicePool', () => {
+    const rows = [{ spikeNumber: 1, sweep: 2, epoch: 0, epochLevel: -100, dacCommand: 5, include: true }]
     const definitions = {
-      spikeNumber: { type: 'int', axis_label: 'Spike number', category: 'identity' },
-      epoch: { type: 'int', axis_label: 'Epoch', category: 'identity' },
-      epochLevel: { type: 'float', axis_label: 'Epoch level', category: 'stimulus' },
-      peakVal: { type: 'float', axis_label: 'Peak voltage (mV)', category: 'waveform' },
+      spikeNumber: { type: 'int', axis_label: 'Spike number', category: 'identity', is_categorical: false, show_in_plot_menu: true },
+      sweep: { type: 'int', axis_label: 'Sweep', category: 'acquisition', is_categorical: true, show_in_plot_menu: true },
+      epoch: { type: 'int', axis_label: 'Epoch', category: 'acquisition', is_categorical: true, show_in_plot_menu: true },
+      epochLevel: { type: 'float', axis_label: 'Epoch level', category: 'acquisition', is_categorical: true, show_in_plot_menu: true },
+      dacCommand: { type: 'float', axis_label: 'DAC command', category: 'acquisition', is_categorical: false, show_in_plot_menu: false },
+      include: { type: 'bool', axis_label: 'Included', category: 'metadata', is_categorical: true, show_in_plot_menu: false },
     }
 
     const dataset = nicePoolDataset(rows, definitions)
 
     expect(dataset.preFilterColumns).toEqual(['epoch'])
+    expect(dataset.schema?.filter(({ categorical }) => categorical).map(({ name }) => name)).toEqual([
+      'sweep',
+      'epoch',
+      'epochLevel',
+    ])
     expect(dataset.schema?.find(({ name }) => name === 'epochLevel')).toEqual({
       name: 'epochLevel',
       type: 'number',
       axis_label: 'Epoch level',
-      category: 'stimulus',
+      category: 'acquisition',
       categorical: true,
     })
   })
 
   it('uses documented schema fallbacks for an unknown result column', () => {
     const dataset = nicePoolDataset([{ spikeNumber: 1, pluginResult: 2 }], {
-      spikeNumber: { type: 'int', axis_label: 'Spike number', category: 'identity' },
+      spikeNumber: { type: 'int', axis_label: 'Spike number', category: 'identity', is_categorical: false, show_in_plot_menu: true },
     })
 
     expect(dataset.schema?.find(({ name }) => name === 'pluginResult')).toEqual({
@@ -59,6 +66,7 @@ describe('loadSanPyTable', () => {
       type: 'string',
       axis_label: 'pluginResult',
       category: 'custom',
+      categorical: false,
     })
   })
 })

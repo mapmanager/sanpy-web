@@ -108,7 +108,12 @@ export async function loadAnalysisResultDefinitions(
   const definitions = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
   if (!object(definitions)) throw new Error('Invalid SanPy analysis-result definitions document')
   for (const [name, value] of Object.entries(definitions)) {
-    if (!object(value) || typeof value.axis_label !== 'string' || !value.axis_label || typeof value.category !== 'string') {
+    if (!object(value)
+      || typeof value.axis_label !== 'string'
+      || !value.axis_label
+      || typeof value.category !== 'string'
+      || typeof value.is_categorical !== 'boolean'
+      || typeof value.show_in_plot_menu !== 'boolean') {
       throw new Error(`Invalid SanPy analysis-result definition ${JSON.stringify(name)}`)
     }
   }

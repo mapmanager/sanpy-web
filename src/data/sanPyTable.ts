@@ -81,12 +81,15 @@ function nicePoolColumnType(name: string, definitions: AnalysisResultDefinitions
 /** Build the complete NicePool dataset contract from SanPy result metadata. */
 export function nicePoolDataset(rows: NicePoolRow[], definitions: AnalysisResultDefinitions): DatasetInput {
   const columns = [...new Set(rows.flatMap(Object.keys))]
-  const schema: ColumnSchema[] = columns.map((name) => ({
-    name,
-    type: nicePoolColumnType(name, definitions),
-    axis_label: definitions[name]?.axis_label ?? name,
-    category: definitions[name]?.category ?? 'custom',
-    ...(name === 'epochLevel' ? { categorical: true } : {}),
-  }))
+  const schema: ColumnSchema[] = columns.map((name) => {
+    const definition = definitions[name]
+    return {
+      name,
+      type: nicePoolColumnType(name, definitions),
+      axis_label: definition?.axis_label ?? name,
+      category: definition?.category ?? 'custom',
+      categorical: definition?.is_categorical === true && definition.show_in_plot_menu === true,
+    }
+  })
   return { rows, rowIdColumn: 'spikeNumber', schema, preFilterColumns: ['epoch'] }
 }

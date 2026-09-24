@@ -59,11 +59,30 @@ describe('loadSanPyCollection', () => {
     await expect(loadDetectionParameters(source, valid.members[0].recording, 'metadata/detection_parameters.json')).resolves.toEqual({ detectionName: 'Fast Neuron', dvdtThreshold: 20 })
   })
 
-  it('loads axis labels and categories from analysis-result definitions', async () => {
+  it('loads plotting metadata from analysis-result definitions', async () => {
     const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
-    const definitions = { peakVal: { axis_label: 'Peak voltage (mV)', category: 'waveform' } }
+    const definitions = {
+      peakVal: {
+        axis_label: 'Peak voltage (mV)',
+        category: 'waveform',
+        is_categorical: false,
+        show_in_plot_menu: true,
+      },
+    }
     source.fetch = fetchJson(definitions) as LoadedSanPyCollection['fetch']
     await expect(loadAnalysisResultDefinitions(source, valid.members[0].recording, 'metadata/analysis_result_definitions.json')).resolves.toEqual(definitions)
+  })
+
+  it('rejects analysis-result definitions missing required plotting metadata', async () => {
+    const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
+    source.fetch = fetchJson({
+      peakVal: { axis_label: 'Peak voltage (mV)', category: 'waveform', is_categorical: false },
+    }) as LoadedSanPyCollection['fetch']
+    await expect(loadAnalysisResultDefinitions(
+      source,
+      valid.members[0].recording,
+      'metadata/analysis_result_definitions.json',
+    )).rejects.toThrow('Invalid SanPy analysis-result definition "peakVal"')
   })
 
   it('rejects duplicate runtime overlay identifiers', async () => {

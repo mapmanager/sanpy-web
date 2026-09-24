@@ -63,6 +63,12 @@ export interface TraceOverlayDefinition {
 }
 
 export interface TraceOverlayDocument { overlays: TraceOverlayDefinition[] }
-export interface AnalysisResultDefinition { axis_label: string; category: string; [key: string]: unknown }
+export interface AnalysisResultDefinition {
+  axis_label: string
+  category: string
+  is_categorical: boolean
+  show_in_plot_menu: boolean
+  [key: string]: unknown
+}
 export type AnalysisResultDefinitions = Record<string, AnalysisResultDefinition>
 export interface LoadedSanPyCollection { root: URL; fetch: ResourceFetch; collection: SanPyCollection }
