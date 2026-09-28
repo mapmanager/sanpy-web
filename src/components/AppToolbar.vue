@@ -7,8 +7,8 @@ defineEmits<{ toggleNicePool: []; toggleExperimentalMetadata: []; toggleFileMeta
 
 <template>
   <nav class="app-toolbar" aria-label="Views">
-    <button type="button" class="icon-button" :class="{ active: experimentalMetadataOpen }" :disabled="disabled" aria-label="Experimental Metadata" title="Experimental Metadata" @click="$emit('toggleExperimentalMetadata')"><ListTree :size="19" aria-hidden="true" /></button>
-    <button type="button" class="icon-button" :class="{ active: fileMetadataOpen }" :disabled="disabled" aria-label="File Metadata" title="File Metadata" @click="$emit('toggleFileMetadata')"><FileJson :size="19" aria-hidden="true" /></button>
+    <button type="button" class="icon-button" :class="{ active: fileMetadataOpen }" :disabled="disabled" aria-label="File metadata" title="File metadata" @click="$emit('toggleFileMetadata')"><FileJson :size="19" aria-hidden="true" /></button>
+    <button type="button" class="icon-button" :class="{ active: experimentalMetadataOpen }" :disabled="disabled" aria-label="Experimental metadata" title="Experimental metadata" @click="$emit('toggleExperimentalMetadata')"><ListTree :size="19" aria-hidden="true" /></button>
     <button type="button" class="icon-button" :class="{ active: detectionParametersOpen }" :disabled="disabled" aria-label="Detection parameters" title="Detection parameters" @click="$emit('toggleDetectionParameters')"><SlidersHorizontal :size="19" aria-hidden="true" /></button>
     <button
       type="button"
