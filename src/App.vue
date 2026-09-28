@@ -13,9 +13,9 @@ import { SanPyDerivativeSignalSource, SanPyZarrSignalSource, type RightAxisSigna
 import { loadSanPyTable, nicePoolRows, type AnalysisRow } from './data/sanPyTable'
 import { createDirectoryFetch, directoryPickerSupported, pickTraceCollection } from './data/resourceFetch'
 import { loadSampleCatalog, type SanPySample } from './data/sampleCatalog'
-import { loadAnalysisResultDefinitions, loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadSanPyRecording, loadTraceOverlays } from './data/sanPyZarrLoader'
+import { loadAnalysisResultDefinitions, loadDetectionParameterDefinitions, loadDetectionParameters, loadMetadataDefinitions, loadSanPyCollection, loadSanPyMetadata, loadSanPyRecording, loadTraceOverlays } from './data/sanPyZarrLoader'
 import { overlaySeries, resultIdFromOverlay } from './data/traceOverlays'
-import type { AnalysisResultDefinitions, LoadedSanPyCollection, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
+import type { AnalysisResultDefinitions, LoadedSanPyCollection, MetadataDefinitions, SanPyRecording, TraceOverlayDefinition } from './models/traceCollection'
 import { createViewportMirror } from './viewportLink'
 
 interface ViewerApi {
@@ -48,10 +48,15 @@ const nicePoolWidth = ref(NICEPOOL_DEFAULT_WIDTH)
 const nicePoolResizing = ref(false)
 let nicePoolDrag: { pointerId: number; startX: number; startWidth: number } | null = null
 const appInformationOpen = ref(false)
-const metadataOpen = ref(false)
-const metadata = ref<Record<string, unknown>>({})
+const experimentalMetadataOpen = ref(false)
+const experimentalMetadata = ref<Record<string, unknown>>({})
+const experimentalMetadataDefinitions = ref<MetadataDefinitions>({})
+const fileMetadataOpen = ref(false)
+const fileMetadata = ref<Record<string, unknown>>({})
+const fileMetadataDefinitions = ref<MetadataDefinitions>({})
 const detectionParametersOpen = ref(false)
 const detectionParameters = ref<Record<string, unknown>>({})
+const detectionParameterDefinitions = ref<MetadataDefinitions>({})
 const analysisResultDefinitions = ref<AnalysisResultDefinitions>({})
 const rightAxisSignal = ref<RightAxisSignal>('command')
 let recordingLoadController: AbortController | null = null
@@ -78,7 +83,7 @@ async function selectSweep(value: number): Promise<void> {
 }
 
 async function openCollection(next: LoadedSanPyCollection): Promise<void> {
-  source.value = next; selectedId.value = null; recording.value = null; recordingPath.value = null; peaks.value = []; overlayDefinitions.value = []; metadata.value = {}; detectionParameters.value = {}; analysisResultDefinitions.value = {}
+  source.value = next; selectedId.value = null; recording.value = null; recordingPath.value = null; peaks.value = []; overlayDefinitions.value = []; experimentalMetadata.value = {}; experimentalMetadataDefinitions.value = {}; fileMetadata.value = {}; fileMetadataDefinitions.value = {}; detectionParameters.value = {}; detectionParameterDefinitions.value = {}; analysisResultDefinitions.value = {}
   const first = next.collection.members[0]; if (first) await selectRecording(first.id)
 }
 async function openUrl(): Promise<void> {
@@ -99,16 +104,20 @@ async function selectRecording(id: string): Promise<void> {
   await perform(async () => {
     const member = collection.collection.members.find((item) => item.id === id); if (!member) throw new Error(`Unknown recording ${id}`)
     const nextRecording = await loadSanPyRecording(collection, member.recording, controller.signal)
-    const [nextPeaks, nextMetadata, nextDetectionParameters, nextDefinitions, nextOverlays] = await Promise.all([
+    const [nextPeaks, nextExperimentalMetadata, nextExperimentalDefinitions, nextFileMetadata, nextFileDefinitions, nextDetectionParameters, nextDetectionDefinitions, nextDefinitions, nextOverlays] = await Promise.all([
       loadSanPyTable(collection, member.recording, nextRecording.resources.analysis_results, controller.signal),
-      loadSanPyMetadata(collection, member.recording, nextRecording.resources.sanpy_metadata, controller.signal),
+      loadSanPyMetadata(collection, member.recording, nextRecording.resources.experimental_metadata, controller.signal),
+      loadMetadataDefinitions(collection, member.recording, nextRecording.resources.experimental_metadata_definitions, controller.signal),
+      loadSanPyMetadata(collection, member.recording, nextRecording.resources.file_metadata, controller.signal),
+      loadMetadataDefinitions(collection, member.recording, nextRecording.resources.file_metadata_definitions, controller.signal),
       loadDetectionParameters(collection, member.recording, nextRecording.resources.detection_parameters, controller.signal),
+      loadDetectionParameterDefinitions(collection, member.recording, nextRecording.resources.detection_parameter_definitions, controller.signal),
       loadAnalysisResultDefinitions(collection, member.recording, nextRecording.resources.analysis_result_definitions, controller.signal),
       loadTraceOverlays(collection, member.recording, nextRecording.resources.trace_overlays, controller.signal),
     ])
     if (controller.signal.aborted) return
     recording.value = nextRecording; recordingPath.value = member.recording; selectedId.value = id; sweep.value = 0; channel.value = 0; selectedPeakId.value = null
-    peaks.value = nextPeaks; metadata.value = nextMetadata; detectionParameters.value = nextDetectionParameters
+    peaks.value = nextPeaks; experimentalMetadata.value = nextExperimentalMetadata; experimentalMetadataDefinitions.value = nextExperimentalDefinitions; fileMetadata.value = nextFileMetadata; fileMetadataDefinitions.value = nextFileDefinitions; detectionParameters.value = nextDetectionParameters; detectionParameterDefinitions.value = nextDetectionDefinitions
     analysisResultDefinitions.value = nextDefinitions; overlayDefinitions.value = nextOverlays.overlays
     await updateViewer()
   })
@@ -148,9 +157,11 @@ function configureViewer(widget: ViewerApi | null): void { if (widget) { widget.
 watch(viewer, configureViewer)
 watch(derivativeViewer, configureViewer)
 watch(theme, async (value) => { await nextTick(); viewer.value?.setTheme(value); derivativeViewer.value?.setTheme(value) })
-function toggleMetadata(): void { metadataOpen.value = !metadataOpen.value; if (metadataOpen.value) { detectionParametersOpen.value = false; appInformationOpen.value = false } }
-function toggleDetectionParameters(): void { detectionParametersOpen.value = !detectionParametersOpen.value; if (detectionParametersOpen.value) { metadataOpen.value = false; appInformationOpen.value = false } }
-function toggleAppInformation(): void { appInformationOpen.value = !appInformationOpen.value; if (appInformationOpen.value) { metadataOpen.value = false; detectionParametersOpen.value = false } }
+function closeMetadataPanels(): void { experimentalMetadataOpen.value = false; fileMetadataOpen.value = false; detectionParametersOpen.value = false }
+function toggleExperimentalMetadata(): void { const open = !experimentalMetadataOpen.value; closeMetadataPanels(); experimentalMetadataOpen.value = open; if (open) appInformationOpen.value = false }
+function toggleFileMetadata(): void { const open = !fileMetadataOpen.value; closeMetadataPanels(); fileMetadataOpen.value = open; if (open) appInformationOpen.value = false }
+function toggleDetectionParameters(): void { const open = !detectionParametersOpen.value; closeMetadataPanels(); detectionParametersOpen.value = open; if (open) appInformationOpen.value = false }
+function toggleAppInformation(): void { appInformationOpen.value = !appInformationOpen.value; if (appInformationOpen.value) closeMetadataPanels() }
 function resizeNicePool(requested: number): void { nicePoolWidth.value = Math.min(NICEPOOL_MAX_WIDTH, Math.max(NICEPOOL_MIN_WIDTH, requested)) }
 function toggleNicePool(): void {
   nicePoolOpen.value = !nicePoolOpen.value
@@ -221,12 +232,13 @@ void initialize()
 </script>
 
 <template>
-  <div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen, 'nicepool-resizing': nicePoolResizing, 'left-panel-open': appInformationOpen || metadataOpen || detectionParametersOpen }]" :style="{ '--nicepool-open-width': `${nicePoolWidth}px` }">
+  <div :class="['app-shell', `app--${theme}`, { 'nicepool-open': nicePoolOpen, 'nicepool-resizing': nicePoolResizing, 'left-panel-open': appInformationOpen || experimentalMetadataOpen || fileMetadataOpen || detectionParametersOpen }]" :style="{ '--nicepool-open-width': `${nicePoolWidth}px` }">
     <header class="toolbar"><h1>SanPy Web</h1><label v-if="samples.length" class="sample-picker">Sample<select :value="samples.some((sample) => sample.url === url) ? url : ''" :disabled="loading" @change="openSample"><option value="" disabled>Choose a sample…</option><option v-for="sample in samples" :key="sample.url" :value="sample.url">{{ sample.name }}</option></select></label><form @submit.prevent="openUrl"><input v-model="url" type="url" placeholder="https://…/sample.sanpy/" aria-label="Trace collection URL"><button :disabled="loading || !url">Open URL</button></form><button :disabled="loading || !directoryPickerSupported()" @click="openFolder">Open local folder</button><label class="theme-switch"><Sun class="theme-switch__icon" :class="{ active: !darkTheme }" :size="16" aria-hidden="true" /><input v-model="darkTheme" type="checkbox" role="switch" aria-label="Use dark theme"><span class="theme-switch__track" aria-hidden="true"><span /></span><Moon class="theme-switch__icon" :class="{ active: darkTheme }" :size="16" aria-hidden="true" /></label><a class="icon-button" href="https://mapmanager.github.io/sanpy-web/docs/" target="_blank" rel="noreferrer" aria-label="Open the SanPy Web documentation" title="Documentation"><BookOpen :size="19" aria-hidden="true" /></a></header>
-    <AppToolbar :nice-pool-open="nicePoolOpen" :metadata-open="metadataOpen" :detection-parameters-open="detectionParametersOpen" :app-information-open="appInformationOpen" :disabled="!source" @toggle-nice-pool="toggleNicePool" @toggle-metadata="toggleMetadata" @toggle-detection-parameters="toggleDetectionParameters" @toggle-app-information="toggleAppInformation" />
+    <AppToolbar :nice-pool-open="nicePoolOpen" :experimental-metadata-open="experimentalMetadataOpen" :file-metadata-open="fileMetadataOpen" :detection-parameters-open="detectionParametersOpen" :app-information-open="appInformationOpen" :disabled="!source" @toggle-nice-pool="toggleNicePool" @toggle-experimental-metadata="toggleExperimentalMetadata" @toggle-file-metadata="toggleFileMetadata" @toggle-detection-parameters="toggleDetectionParameters" @toggle-app-information="toggleAppInformation" />
     <AppInformationPanel v-if="appInformationOpen" @close="appInformationOpen = false" />
-    <JsonValuesPanel v-if="metadataOpen && recording" title="File metadata" :values="metadata" :recording-name="recording.name" @close="metadataOpen = false" />
-    <JsonValuesPanel v-if="detectionParametersOpen && recording" title="Detection parameters" :values="detectionParameters" :recording-name="recording.name" @close="detectionParametersOpen = false" />
+    <JsonValuesPanel v-if="experimentalMetadataOpen && recording" title="Experimental Metadata" :values="experimentalMetadata" :definitions="experimentalMetadataDefinitions" :recording-name="recording.name" @close="experimentalMetadataOpen = false" />
+    <JsonValuesPanel v-if="fileMetadataOpen && recording" title="File Metadata" :values="fileMetadata" :definitions="fileMetadataDefinitions" :recording-name="recording.name" @close="fileMetadataOpen = false" />
+    <JsonValuesPanel v-if="detectionParametersOpen && recording" title="Detection parameters" :values="detectionParameters" :definitions="detectionParameterDefinitions" :recording-name="recording.name" @close="detectionParametersOpen = false" />
     <main class="app-main">
       <p v-if="error" class="error" role="alert">{{ error }}</p><p v-else-if="catalogError && !source" class="catalog-warning" role="status">Sample catalog unavailable. You can still open a URL or local folder.</p>
       <template v-if="source">

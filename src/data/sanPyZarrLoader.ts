@@ -1,6 +1,7 @@
 import type {
   LoadedSanPyCollection,
   AnalysisResultDefinitions,
+  MetadataDefinitions,
   ResourceFetch,
   SanPyCollection,
   SanPyRecording,
@@ -61,8 +62,12 @@ export async function loadSanPyRecording(
     throw new Error('Unsupported SanPy Zarr recording manifest')
   }
   if (!relativePath(recording.resources.data)
-    || !relativePath(recording.resources.sanpy_metadata)
+    || !relativePath(recording.resources.experimental_metadata)
+    || !relativePath(recording.resources.experimental_metadata_definitions)
+    || !relativePath(recording.resources.file_metadata)
+    || !relativePath(recording.resources.file_metadata_definitions)
     || !relativePath(recording.resources.detection_parameters)
+    || !relativePath(recording.resources.detection_parameter_definitions)
     || !relativePath(recording.resources.analysis_result_definitions)
     || !relativePath(recording.resources.trace_overlays)) {
     throw new Error('Invalid SanPy Zarr recording resource path')
@@ -86,6 +91,27 @@ export async function loadSanPyMetadata(
   return metadata
 }
 
+export async function loadMetadataDefinitions(
+  source: LoadedSanPyCollection,
+  recordingPath: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<MetadataDefinitions> {
+  const recordingUrl = new URL(recordingPath, source.root)
+  const definitions = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
+  if (!object(definitions)) throw new Error('Invalid metadata-definitions document')
+  for (const [key, definition] of Object.entries(definitions)) {
+    if (!object(definition) || typeof definition.display_name !== 'string' || !definition.display_name) {
+      throw new Error(`Invalid metadata definition ${JSON.stringify(key)}`)
+    }
+    if (definition.choices !== undefined
+      && (!Array.isArray(definition.choices) || definition.choices.some((choice) => typeof choice !== 'string'))) {
+      throw new Error(`Invalid metadata definition ${JSON.stringify(key)}`)
+    }
+  }
+  return definitions as MetadataDefinitions
+}
+
 export async function loadDetectionParameters(
   source: LoadedSanPyCollection,
   recordingPath: string,
@@ -96,6 +122,23 @@ export async function loadDetectionParameters(
   const parameters = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
   if (!object(parameters)) throw new Error('Invalid SanPy detection-parameters document')
   return parameters
+}
+
+export async function loadDetectionParameterDefinitions(
+  source: LoadedSanPyCollection,
+  recordingPath: string,
+  path: string,
+  signal?: AbortSignal,
+): Promise<MetadataDefinitions> {
+  const recordingUrl = new URL(recordingPath, source.root)
+  const definitions = await loadJson<unknown>(new URL(path, recordingUrl), source.fetch, signal)
+  if (!object(definitions)) throw new Error('Invalid detection-parameter definitions document')
+  return Object.fromEntries(Object.entries(definitions).map(([key, definition]) => {
+    if (!object(definition) || typeof definition.humanName !== 'string' || !definition.humanName) {
+      throw new Error(`Invalid detection-parameter definition ${JSON.stringify(key)}`)
+    }
+    return [key, { display_name: definition.humanName }]
+  }))
 }
 
 export async function loadAnalysisResultDefinitions(

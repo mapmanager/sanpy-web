@@ -1,11 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { X } from '@lucide/vue'
+import type { MetadataDefinitions } from '../models/traceCollection'
 
-const props = defineProps<{ title: string; values: Record<string, unknown>; recordingName: string }>()
+const props = defineProps<{ title: string; values: Record<string, unknown>; definitions?: MetadataDefinitions; recordingName: string }>()
 defineEmits<{ close: [] }>()
 
 const entries = computed(() => Object.entries(props.values))
+
+function displayName(key: string): string {
+  return props.definitions?.[key]?.display_name ?? key
+}
 
 function displayValue(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
@@ -18,7 +23,7 @@ function displayValue(value: unknown): string {
   <aside class="json-values-panel" :aria-label="title">
     <header><div><h2>{{ title }}</h2><p>{{ recordingName }}</p></div><button type="button" class="icon-button" :aria-label="`Close ${title}`" title="Close" @click="$emit('close')"><X :size="17" aria-hidden="true" /></button></header>
     <div class="json-values-panel__body">
-      <dl v-if="entries.length"><template v-for="([key, value]) in entries" :key="key"><dt>{{ key }}</dt><dd>{{ displayValue(value) }}</dd></template></dl>
+      <dl v-if="entries.length"><template v-for="([key, value]) in entries" :key="key"><dt>{{ displayName(key) }}</dt><dd>{{ displayValue(value) }}</dd></template></dl>
       <p v-else class="empty">No values.</p>
     </div>
   </aside>

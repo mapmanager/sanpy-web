@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadAnalysisResultDefinitions, loadDetectionParameters, loadSanPyCollection, loadSanPyMetadata, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
+import { loadAnalysisResultDefinitions, loadDetectionParameterDefinitions, loadDetectionParameters, loadMetadataDefinitions, loadSanPyCollection, loadSanPyMetadata, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
 import type { LoadedSanPyCollection } from '../src/models/traceCollection'
 
 const valid = {
@@ -43,20 +43,33 @@ describe('loadSanPyCollection', () => {
 
   it('loads the selected recording SanPy metadata document', async () => {
     const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
-    source.fetch = fetchJson({ Species: 'mouse', Include: 'yes' }) as LoadedSanPyCollection['fetch']
-    await expect(loadSanPyMetadata(source, valid.members[0].recording, 'metadata/sanpy_metadata.json')).resolves.toEqual({ Species: 'mouse', Include: 'yes' })
+    source.fetch = fetchJson({ species: 'mouse', include: 'yes' }) as LoadedSanPyCollection['fetch']
+    await expect(loadSanPyMetadata(source, valid.members[0].recording, 'metadata/experimental_metadata.json')).resolves.toEqual({ species: 'mouse', include: 'yes' })
   })
 
   it('rejects non-object SanPy metadata', async () => {
     const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
     source.fetch = fetchJson(['not', 'metadata']) as LoadedSanPyCollection['fetch']
-    await expect(loadSanPyMetadata(source, valid.members[0].recording, 'metadata/sanpy_metadata.json')).rejects.toThrow('Invalid')
+    await expect(loadSanPyMetadata(source, valid.members[0].recording, 'metadata/experimental_metadata.json')).rejects.toThrow('Invalid')
+  })
+
+  it('loads metadata display definitions', async () => {
+    const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
+    const definitions = { animal_id: { display_name: 'Animal ID' } }
+    source.fetch = fetchJson(definitions) as LoadedSanPyCollection['fetch']
+    await expect(loadMetadataDefinitions(source, valid.members[0].recording, 'metadata/experimental_metadata_definitions.json')).resolves.toEqual(definitions)
   })
 
   it('loads detection parameters as JSON key/value data', async () => {
     const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
     source.fetch = fetchJson({ detectionName: 'Fast Neuron', dvdtThreshold: 20 }) as LoadedSanPyCollection['fetch']
     await expect(loadDetectionParameters(source, valid.members[0].recording, 'metadata/detection_parameters.json')).resolves.toEqual({ detectionName: 'Fast Neuron', dvdtThreshold: 20 })
+  })
+
+  it('adapts detection human names for the shared values panel', async () => {
+    const source = await loadSanPyCollection('https://example.test/sample.sanpy.zarr/', fetchJson(valid))
+    source.fetch = fetchJson({ dvdtThreshold: { humanName: 'dV/dt Threshold' } }) as LoadedSanPyCollection['fetch']
+    await expect(loadDetectionParameterDefinitions(source, valid.members[0].recording, 'metadata/detection_parameter_definitions.json')).resolves.toEqual({ dvdtThreshold: { display_name: 'dV/dt Threshold' } })
   })
 
   it('loads plotting metadata from analysis-result definitions', async () => {
