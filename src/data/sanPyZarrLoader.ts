@@ -22,6 +22,28 @@ export function relativePath(value: string): boolean {
   return !!value && !value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..')
 }
 
+function quoted(value: unknown): string {
+  return JSON.stringify(value) ?? 'undefined'
+}
+
+function relativePathProblem(value: unknown): string | null {
+  if (value === undefined || value === null || value === '') return 'missing (expected a relative path)'
+  if (typeof value !== 'string' || !relativePath(value)) return `${quoted(value)} (expected a relative path)`
+  return null
+}
+
+const RECORDING_RESOURCE_PATHS = [
+  'data',
+  'experimental_metadata',
+  'experimental_metadata_definitions',
+  'file_metadata',
+  'file_metadata_definitions',
+  'detection_parameters',
+  'detection_parameter_definitions',
+  'analysis_result_definitions',
+  'trace_overlays',
+] as const
+
 export async function loadJson<T>(
   url: URL,
   resourceFetch: ResourceFetch,
@@ -38,18 +60,25 @@ export async function loadSanPyCollection(
   signal?: AbortSignal,
 ): Promise<LoadedSanPyCollection> {
   const resolved = rootUrl(root)
-  const collection = await loadJson<SanPyCollection>(new URL('collection.json', resolved), resourceFetch, signal)
-  if (!object(collection) || collection.format !== 'sanpy-zarr' || collection.version !== SANPY_ZARR_VERSION || !Array.isArray(collection.members)) {
-    throw new Error('Unsupported or invalid SanPy Zarr collection manifest')
+  const collection = await loadJson<unknown>(new URL('collection.json', resolved), resourceFetch, signal)
+  if (!object(collection)) throw new Error('Invalid SanPy Zarr collection manifest in collection.json: expected an object')
+  if (collection.format !== 'sanpy-zarr') {
+    throw new Error(`Unsupported SanPy Zarr collection format in collection.json: found ${quoted(collection.format)}, expected "sanpy-zarr"`)
   }
-  const ids = new Set<string>()
+  if (collection.version !== SANPY_ZARR_VERSION) {
+    throw new Error(`Unsupported SanPy Zarr collection version in collection.json: found ${quoted(collection.version)}, expected ${quoted(SANPY_ZARR_VERSION)}`)
+  }
+  if (!Array.isArray(collection.members)) throw new Error('Invalid SanPy Zarr collection members in collection.json: expected an array')
+  const ids = new Set<unknown>()
   for (const member of collection.members) {
-    if (!member.id || ids.has(member.id) || !relativePath(member.recording)) {
-      throw new Error('Invalid SanPy Zarr member identity or path')
-    }
+    if (!object(member)) throw new Error('Invalid SanPy Zarr member in collection.json: expected an object')
+    if (!member.id) throw new Error('Invalid SanPy Zarr member id in collection.json: missing')
+    if (ids.has(member.id)) throw new Error(`Invalid SanPy Zarr member id in collection.json: duplicate ${quoted(member.id)}`)
+    const problem = relativePathProblem(member.recording)
+    if (problem) throw new Error(`Invalid SanPy Zarr member recording in collection.json for ${quoted(member.id)}: ${problem}`)
     ids.add(member.id)
   }
-  return { root: resolved, fetch: resourceFetch, collection }
+  return { root: resolved, fetch: resourceFetch, collection: collection as unknown as SanPyCollection }
 }
 
 export async function loadSanPyRecording(
@@ -57,26 +86,37 @@ export async function loadSanPyRecording(
   path: string,
   signal?: AbortSignal,
 ): Promise<SanPyRecording> {
-  const recording = await loadJson<SanPyRecording>(new URL(path, source.root), source.fetch, signal)
-  if (recording.format !== 'sanpy-zarr-recording' || recording.version !== SANPY_ZARR_VERSION) {
-    throw new Error('Unsupported SanPy Zarr recording manifest')
+  const recording = await loadJson<unknown>(new URL(path, source.root), source.fetch, signal)
+  if (!object(recording)) throw new Error(`Invalid SanPy Zarr recording manifest in ${path}: expected an object`)
+  if (recording.format !== 'sanpy-zarr-recording') {
+    throw new Error(`Unsupported SanPy Zarr recording format in ${path}: found ${quoted(recording.format)}, expected "sanpy-zarr-recording"`)
   }
-  if (!relativePath(recording.resources.data)
-    || !relativePath(recording.resources.experimental_metadata)
-    || !relativePath(recording.resources.experimental_metadata_definitions)
-    || !relativePath(recording.resources.file_metadata)
-    || !relativePath(recording.resources.file_metadata_definitions)
-    || !relativePath(recording.resources.detection_parameters)
-    || !relativePath(recording.resources.detection_parameter_definitions)
-    || !relativePath(recording.resources.analysis_result_definitions)
-    || !relativePath(recording.resources.trace_overlays)) {
-    throw new Error('Invalid SanPy Zarr recording resource path')
+  if (recording.version !== SANPY_ZARR_VERSION) {
+    throw new Error(`Unsupported SanPy Zarr recording version in ${path}: found ${quoted(recording.version)}, expected ${quoted(SANPY_ZARR_VERSION)}`)
   }
-  const representations = recording.resources.analysis_results.representations
-  if (Object.values(representations).some((path) => path !== undefined && !relativePath(path))) {
-    throw new Error('Invalid SanPy Zarr table resource path')
+  if (!object(recording.resources)) {
+    throw new Error(`Invalid SanPy Zarr recording resource "resources" in ${path}: missing (expected an object)`)
   }
-  return recording
+  for (const key of RECORDING_RESOURCE_PATHS) {
+    const problem = relativePathProblem(recording.resources[key])
+    if (problem) throw new Error(`Invalid SanPy Zarr recording resource ${quoted(key)} in ${path}: ${problem}`)
+  }
+  const analysis = recording.resources.analysis_results
+  if (!object(analysis)) {
+    const problem = analysis === undefined || analysis === null
+      ? 'missing (expected a table resource)'
+      : `${quoted(analysis)} (expected a table resource)`
+    throw new Error(`Invalid SanPy Zarr recording resource "analysis_results" in ${path}: ${problem}`)
+  }
+  if (!object(analysis.representations)) {
+    throw new Error(`Invalid SanPy Zarr table resource "representations" in ${path}: missing (expected an object)`)
+  }
+  for (const [key, value] of Object.entries(analysis.representations)) {
+    if (value === undefined) continue
+    const problem = relativePathProblem(value)
+    if (problem) throw new Error(`Invalid SanPy Zarr table resource ${quoted(key)} in ${path}: ${problem}`)
+  }
+  return recording as unknown as SanPyRecording
 }
 
 export async function loadSanPyMetadata(

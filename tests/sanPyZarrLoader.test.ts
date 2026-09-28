@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { loadAnalysisResultDefinitions, loadDetectionParameterDefinitions, loadDetectionParameters, loadMetadataDefinitions, loadSanPyCollection, loadSanPyMetadata, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
-import type { LoadedSanPyCollection } from '../src/models/traceCollection'
+import { loadAnalysisResultDefinitions, loadDetectionParameterDefinitions, loadDetectionParameters, loadMetadataDefinitions, loadSanPyCollection, loadSanPyMetadata, loadSanPyRecording, loadTraceOverlays } from '../src/data/sanPyZarrLoader'
+import type { LoadedSanPyCollection, SanPyCollection } from '../src/models/traceCollection'
 
 const valid = {
   format: 'sanpy-zarr',
@@ -34,11 +34,15 @@ describe('loadSanPyCollection', () => {
 
   it('rejects traversal paths', async () => {
     const invalid = { ...valid, members: [{ ...valid.members[0], recording: '../secret' }] }
-    await expect(loadSanPyCollection('https://example.test/', fetchJson(invalid))).rejects.toThrow('Invalid')
+    await expect(loadSanPyCollection('https://example.test/', fetchJson(invalid))).rejects.toThrow(
+      'Invalid SanPy Zarr member recording in collection.json for "r1": "../secret" (expected a relative path)',
+    )
   })
 
   it('rejects unsupported versions', async () => {
-    await expect(loadSanPyCollection('https://example.test/', fetchJson({ ...valid, version: '1.0' }))).rejects.toThrow('Unsupported')
+    await expect(loadSanPyCollection('https://example.test/', fetchJson({ ...valid, version: '1.0' }))).rejects.toThrow(
+      'Unsupported SanPy Zarr collection version in collection.json: found "1.0", expected "1.0-draft"',
+    )
   })
 
   it('loads the selected recording SanPy metadata document', async () => {
@@ -105,5 +109,73 @@ describe('loadSanPyCollection', () => {
       { id: 'peaks', label: 'Again', x_result: 'x', y_result: 'y', point_id_result: 'id', sweep_result: 'sweep' },
     ] }) as LoadedSanPyCollection['fetch']
     await expect(loadTraceOverlays(source, valid.members[0].recording, 'metadata/trace_overlays.json')).rejects.toThrow('Invalid')
+  })
+})
+
+const recordingPath = 'recordings/r1/recording.json'
+const validRecording = {
+  format: 'sanpy-zarr-recording',
+  version: '1.0-draft',
+  resources: {
+    data: 'data.zarr',
+    analysis_results: { rows: 0, representations: { csv: 'analysis_results.csv' } },
+    experimental_metadata: 'metadata/experimental_metadata.json',
+    experimental_metadata_definitions: 'metadata/experimental_metadata_definitions.json',
+    file_metadata: 'metadata/file_metadata.json',
+    file_metadata_definitions: 'metadata/file_metadata_definitions.json',
+    detection_parameters: 'metadata/detection_parameters.json',
+    detection_parameter_definitions: 'metadata/detection_parameter_definitions.json',
+    analysis_result_definitions: 'metadata/analysis_result_definitions.json',
+    trace_overlays: 'metadata/trace_overlays.json',
+  },
+}
+
+function recordingSource(recording: unknown): LoadedSanPyCollection {
+  return {
+    root: new URL('https://example.test/sample.sanpy.zarr/'),
+    fetch: fetchJson(recording) as LoadedSanPyCollection['fetch'],
+    collection: valid as unknown as SanPyCollection,
+  }
+}
+
+describe('loadSanPyRecording', () => {
+  it('accepts a recording whose resource paths are relative', async () => {
+    await expect(loadSanPyRecording(recordingSource(validRecording), recordingPath)).resolves.toMatchObject({
+      format: 'sanpy-zarr-recording',
+    })
+  })
+
+  it('names a missing recording resource', async () => {
+    const resources = Object.fromEntries(Object.entries(validRecording.resources).filter(([key]) => key !== 'trace_overlays'))
+    const recording = { ...validRecording, resources }
+    await expect(loadSanPyRecording(recordingSource(recording), recordingPath)).rejects.toThrow(
+      'Invalid SanPy Zarr recording resource "trace_overlays" in recordings/r1/recording.json: missing (expected a relative path)',
+    )
+  })
+
+  it('names a non-relative recording resource path', async () => {
+    const recording = { ...validRecording, resources: { ...validRecording.resources, data: '../secret' } }
+    await expect(loadSanPyRecording(recordingSource(recording), recordingPath)).rejects.toThrow(
+      'Invalid SanPy Zarr recording resource "data" in recordings/r1/recording.json: "../secret" (expected a relative path)',
+    )
+  })
+
+  it('names an unsupported recording version', async () => {
+    await expect(loadSanPyRecording(recordingSource({ ...validRecording, version: '1.0' }), recordingPath)).rejects.toThrow(
+      'Unsupported SanPy Zarr recording version in recordings/r1/recording.json: found "1.0", expected "1.0-draft"',
+    )
+  })
+
+  it('names an invalid analysis-results representation path', async () => {
+    const recording = {
+      ...validRecording,
+      resources: {
+        ...validRecording.resources,
+        analysis_results: { rows: 0, representations: { csv: '/absolute.csv' } },
+      },
+    }
+    await expect(loadSanPyRecording(recordingSource(recording), recordingPath)).rejects.toThrow(
+      'Invalid SanPy Zarr table resource "csv" in recordings/r1/recording.json: "/absolute.csv" (expected a relative path)',
+    )
   })
 })
